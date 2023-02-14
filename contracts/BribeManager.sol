@@ -50,6 +50,7 @@ contract BribeManager is AccessControlUpgradeable {
   function initialize(
     address _gaugeController,
     address[] memory _initialGauges,
+    address[] memory _initialTokens,
     address _rewardHandler
   ) public initializer {
     require(_gaugeController != address(0), "GaugeController not provided");
@@ -65,6 +66,15 @@ contract BribeManager is AccessControlUpgradeable {
     uint256 gaugeCount = _initialGauges.length;
     for (uint i = 0; i < gaugeCount; ) {
       _addGauge(_initialGauges[i]);
+
+      unchecked {
+        i++;
+      }
+    }
+
+    uint256 tokenCount = _initialTokens.length;
+    for (uint256 i = 0; i < tokenCount; ) {
+      _addToken(_initialTokens[i]);
 
       unchecked {
         i++;
@@ -87,6 +97,7 @@ contract BribeManager is AccessControlUpgradeable {
     // But that would essentially reward voters from a previous epoch
     uint256 nextEpochStart = gaugeController.time_total();
     require(bribe.epochStartTime >= nextEpochStart, "Start time too soon");
+    require(bribe.epochStartTime < nextEpochStart + 1 weeks, "Start time past next epoch");
 
     bribe.briber = msg.sender;
 
@@ -96,11 +107,23 @@ contract BribeManager is AccessControlUpgradeable {
 
   // ====================================== ADMIN ===================================== //
 
-  function addWhiteListToken(address token) external onlyRole(ADMIN_ROLE) {
+  function _addToken(address token) internal {
+    require(token != address(0), "Token not provided");
     require(!whitelistedTokens[token], "Already whitelisted");
 
     whitelistedTokens[token] = true;
     emit AddWhitelistToken(token);
+  }
+
+  function addWhiteListTokens(address[] calldata tokens) external onlyRole(ADMIN_ROLE) {
+    uint256 count = tokens.length;
+    for (uint256 i = 0; i < count; ) {
+      _addToken(tokens[i]);
+
+      unchecked {
+        i++;
+      }
+    }
   }
 
   function removeWhiteListToken(address token) external onlyRole(ADMIN_ROLE) {
