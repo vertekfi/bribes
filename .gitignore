@@ -4,8 +4,13 @@ coverage
 coverage.json
 typechain
 typechain-types
+.vscode
 
 #Hardhat files
 cache
 artifacts
+
+# forge
+forge-artifacts
+forge-cache
 
