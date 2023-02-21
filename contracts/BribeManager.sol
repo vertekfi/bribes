@@ -85,8 +85,11 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
 
   function addBribe(address token, uint256 amount, address gauge) external nonReentrant {
     // TODO: unit test edge cases
-    require(token != address(0) && isWhitelistedToken(token), "Token not permitted");
+    require(token != address(0), "Token not provided");
+    require(isWhitelistedToken(token), "Token not permitted");
     require(amount > 0, "Zero bribe amount");
+
+    // Gauge validation
     require(gauge != address(0), "Gauge not provided");
     // This covers_addGauge gauge controller check as well then
     require(approvedGauges[gauge], "Gauge not permitted");
