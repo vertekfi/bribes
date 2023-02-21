@@ -83,7 +83,7 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     }
   }
 
-  function addBribe(Bribe memory bribe) external {
+  function addBribe(Bribe memory bribe) external nonReentrant {
     // TODO: unit test edge cases
     require(whitelistedTokens[bribe.token], "Token not permitted");
     require(bribe.amount > 0, "Zero bribe amount");
@@ -204,11 +204,11 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     emit GaugeControllerSet(_gaugeController);
   }
 
-  /// @dev Sets a new address for the GaugeController contract
-  function setRewardHandler(address handler) external onlyRole(ADMIN_ROLE) {
-    require(handler != address(0), "RewardHandler not provided");
+  // /// @dev Sets a new address for the RewardHandler contract
+  // function setRewardHandler(address handler) external onlyRole(ADMIN_ROLE) {
+  //   require(handler != address(0), "RewardHandler not provided");
 
-    rewardHandler = IRewardHandler(handler);
-    emit RewardHandlerSet(handler);
-  }
+  //   rewardHandler = IRewardHandler(handler);
+  //   emit RewardHandlerSet(handler);
+  // }
 }
