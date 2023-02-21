@@ -23,18 +23,16 @@ const config: HardhatUserConfig = {
     hardhat: {
       forking: {
         url: process.env.BSC_RPC || "",
-        blockNumber: 20908139, // 8/30 ~8:00PM
+        blockNumber: 25871837,
       },
     },
     goerli: {
       url: process.env.GOERLI_RPC || "",
-      accounts:
-        process.env.DEV_KEY !== undefined ? [process.env.DEV_KEY] : [],
+      accounts: process.env.DEV_KEY !== undefined ? [process.env.DEV_KEY] : [],
     },
     bsc: {
       url: process.env.BSC_RPC || "",
-      accounts:
-        process.env.DEV_KEY !== undefined ? [process.env.DEV_KEY] : [],
+      accounts: process.env.DEV_KEY !== undefined ? [process.env.DEV_KEY] : [],
     },
   },
   etherscan: {

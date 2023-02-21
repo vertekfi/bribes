@@ -2,7 +2,7 @@
 pragma solidity 0.8.12;
 
 interface IGaugeController {
-  function gauge_types(address) external returns (int128);
+  function gauge_exists(address) external returns (bool);
 
   function time_total() external returns (uint256);
 

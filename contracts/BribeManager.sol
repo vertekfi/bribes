@@ -6,7 +6,7 @@ import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 
 import "./interfaces/IGaugeController.sol";
-import "./interfaces/IGauge.sol";
+import "./interfaces/ILiquidityGauge.sol";
 import "./interfaces/IRewardHandler.sol";
 
 contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
@@ -19,10 +19,10 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
   // public rewardHandler;
 
   // token => allowed
-  mapping(address => bool) public whitelistedTokens;
+  address[] public whitelistedTokens;
 
-  // gauge => added
-  mapping(address => bool) public gauges;
+  // gauge => approved
+  mapping(address => bool) public approvedGauges;
 
   // epoch start time => gauge => list of bribes for that epoch
   mapping(uint256 => mapping(address => Bribe[])) private _gaugeEpochBribes;
@@ -83,15 +83,15 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     }
   }
 
-  function addBribe(Bribe memory bribe) external nonReentrant {
+  function addBribe(address token, uint256 amount, address gauge) external nonReentrant {
     // TODO: unit test edge cases
-    require(whitelistedTokens[bribe.token], "Token not permitted");
-    require(bribe.amount > 0, "Zero bribe amount");
-    require(bribe.gauge != address(0), "Gauge not provided");
+    require(token != address(0) && isWhitelistedToken(token), "Token not permitted");
+    require(amount > 0, "Zero bribe amount");
+    require(gauge != address(0), "Gauge not provided");
     // This covers_addGauge gauge controller check as well then
-    require(gauges[bribe.gauge], "Gauge not permitted");
+    require(approvedGauges[gauge], "Gauge not permitted");
     // Skip killed gauges in case the contract state here was not updated to match yet
-    require(!IGauge(bribe.gauge).isKilled(), "Gauge is not active");
+    require(!ILiquidityGauge(gauge).is_killed(), "Gauge is not active");
 
     // Instead of numerous checks and balances we will force the bribe to be for the start of next epoch
     // require(bribe.epochStartTime >= nextEpochStart, "Start time too soon");
@@ -107,17 +107,37 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
       nextEpochStart = gaugeController.time_total();
     }
 
+    // Single propery writes can save gas
+    Bribe memory bribe;
+    bribe.token = token;
+    bribe.amount = amount;
+    bribe.gauge = gauge;
     bribe.epochStartTime = nextEpochStart;
     bribe.briber = _msgSender();
 
     // TODO: test
-    _gaugeEpochBribes[nextEpochStart][bribe.gauge].push(bribe);
+    _gaugeEpochBribes[nextEpochStart][gauge].push(bribe);
 
     // We know the token is valid at this point
     // Could send directly to rewarder contract but going in steps for now
-    IERC20Upgradeable(bribe.token).safeTransferFrom(_msgSender(), address(this), bribe.amount);
+    IERC20Upgradeable(token).safeTransferFrom(_msgSender(), address(this), amount);
 
-    emit BribeAdded(nextEpochStart, bribe.gauge, bribe.token, bribe.amount);
+    emit BribeAdded(nextEpochStart, gauge, token, amount);
+  }
+
+  function isWhitelistedToken(address token) public view returns (bool isWhitelisted) {
+    uint256 tokenCount = whitelistedTokens.length;
+
+    for (uint i = 0; i < tokenCount; ) {
+      if (whitelistedTokens[i] == token) {
+        isWhitelisted = true;
+        break;
+      }
+
+      unchecked {
+        ++i;
+      }
+    }
   }
 
   // TODO: We probably want to support scheduling bribes for beyond next epoch
@@ -159,27 +179,29 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
 
   function _addToken(address token) internal {
     require(token != address(0), "Token not provided");
-    require(!whitelistedTokens[token], "Already whitelisted");
+    require(!isWhitelistedToken(token), "Token already added");
 
-    whitelistedTokens[token] = true;
+    whitelistedTokens.push(token);
+
     emit AddWhitelistToken(token);
   }
 
   function removeWhiteListToken(address token) external onlyRole(ADMIN_ROLE) {
-    require(whitelistedTokens[token], "Token not whitelisted");
+    // require(whitelistedTokens[token], "Token not whitelisted");
 
-    whitelistedTokens[token] = false;
+    // whitelistedTokens[token] = false;
+    // TODO: delete at index and shift token list by moving last item into deleted index
     emit RemoveWhitelistToken(token);
   }
 
   /// @dev Adds a gauge that is able to receive bribes
   function _addGauge(address gauge) internal {
     require(gauge != address(0), "Gauge not provided");
-    require(!gauges[gauge], "Gauge already added");
-    require(gaugeController.gauge_types(gauge) >= 0, "Gauge does not exist on Controller");
-    require(!IGauge(gauge).isKilled(), "Gauge is not active");
+    require(!approvedGauges[gauge], "Gauge already added");
+    require(gaugeController.gauge_exists(gauge), "Gauge does not exist on Controller");
+    require(!ILiquidityGauge(gauge).is_killed(), "Gauge is not active");
 
-    gauges[gauge] = true;
+    approvedGauges[gauge] = true;
     emit GaugeAdded(gauge);
   }
 
@@ -190,9 +212,9 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
   /// @dev Removes a gauge from the list that is able to receive bribes
   function removeGauge(address gauge) external onlyRole(ADMIN_ROLE) {
     require(gauge != address(0), "Gauge not provided");
-    require(gauges[gauge], "Gauge not added");
+    require(approvedGauges[gauge], "Gauge not added");
 
-    gauges[gauge] = false;
+    approvedGauges[gauge] = false;
     emit GaugeRemoved(gauge);
   }
 
