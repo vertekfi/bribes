@@ -2,7 +2,7 @@
   "manifestVersion": "3.2",
   "admin": {
     "address": "0x6E1644313086Cf6e90c15FD73B9DF445d385583e",
-    "txHash": "0xaa6110aff8f0ec5a0ea1d15fd59c2079f4b6be9ec7676740c338b30edc9db361"
+    "txHash": "0xfbeec0c010440631281eb312f82cb319b2f03280f7b7d1249fd71aaea01edad0"
   },
   "proxies": [
     {
@@ -12,14 +12,14 @@
     },
     {
       "address": "0x21AFcE22Ba28971198AEb28ED52126b2152ebB9E",
-      "txHash": "0xc73aff8b09e39b87801686446b68a58a386533f6062136ddc0fdb52c597fc824",
+      "txHash": "0xbaf492487d2f9a5b501338857b0c9aa6e1636e653d105527b69182b03205aca3",
       "kind": "transparent"
     }
   ],
   "impls": {
-    "85f01b8e211e614ed9d916b0a9f08fa04f04366dc9d02476c5a916c8cabac7ea": {
+    "8b65fa156d558ab0b32b35b3ceafd9a917c368157215ab01f77a0d4e0ee0fcc9": {
       "address": "0x16e30a23cfc790866ae2D908Fa04f8c6328c991A",
-      "txHash": "0xe48cd3cd9beb03b97d261428d9bfc3d78e394b6d67ca4218de4c4592a239f4c8",
+      "txHash": "0x2ebec8e5bd14bda4682895f766d9820f6550ba0e29bdb629917d723f44f12543",
       "layout": {
         "solcVersion": "0.8.12",
         "storage": [
@@ -92,7 +92,7 @@
             "label": "gaugeController",
             "offset": 0,
             "slot": "201",
-            "type": "t_contract(IGaugeController)3063",
+            "type": "t_contract(IGaugeController)3081",
             "contract": "BribeManager",
             "src": "contracts\\BribeManager.sol:17"
           },
@@ -116,7 +116,7 @@
             "label": "_gaugeEpochBribes",
             "offset": 0,
             "slot": "204",
-            "type": "t_mapping(t_uint256,t_mapping(t_address,t_array(t_struct(Bribe)3084_storage)dyn_storage))",
+            "type": "t_mapping(t_uint256,t_mapping(t_address,t_array(t_struct(Bribe)3102_storage)dyn_storage))",
             "contract": "BribeManager",
             "src": "contracts\\BribeManager.sol:28"
           }
@@ -130,7 +130,7 @@
             "label": "address[]",
             "numberOfBytes": "32"
           },
-          "t_array(t_struct(Bribe)3084_storage)dyn_storage": {
+          "t_array(t_struct(Bribe)3102_storage)dyn_storage": {
             "label": "struct Bribe[]",
             "numberOfBytes": "32"
           },
@@ -150,11 +150,11 @@
             "label": "bytes32",
             "numberOfBytes": "32"
           },
-          "t_contract(IGaugeController)3063": {
+          "t_contract(IGaugeController)3081": {
             "label": "contract IGaugeController",
             "numberOfBytes": "20"
           },
-          "t_mapping(t_address,t_array(t_struct(Bribe)3084_storage)dyn_storage)": {
+          "t_mapping(t_address,t_array(t_struct(Bribe)3102_storage)dyn_storage)": {
             "label": "mapping(address => struct Bribe[])",
             "numberOfBytes": "32"
           },
@@ -166,11 +166,11 @@
             "label": "mapping(bytes32 => struct AccessControlUpgradeable.RoleData)",
             "numberOfBytes": "32"
           },
-          "t_mapping(t_uint256,t_mapping(t_address,t_array(t_struct(Bribe)3084_storage)dyn_storage))": {
+          "t_mapping(t_uint256,t_mapping(t_address,t_array(t_struct(Bribe)3102_storage)dyn_storage))": {
             "label": "mapping(uint256 => mapping(address => struct Bribe[]))",
             "numberOfBytes": "32"
           },
-          "t_struct(Bribe)3084_storage": {
+          "t_struct(Bribe)3102_storage": {
             "label": "struct Bribe",
             "members": [
               {

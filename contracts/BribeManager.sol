@@ -83,6 +83,8 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     }
   }
 
+  // ====================================== STATE TRANSITIONS ===================================== //
+
   function addBribe(address token, uint256 amount, address gauge) external nonReentrant {
     // TODO: unit test edge cases
     require(token != address(0), "Token not provided");
@@ -128,6 +130,8 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     emit BribeAdded(nextEpochStart, gauge, token, amount);
   }
 
+  // ====================================== VIEW ===================================== //
+
   function isWhitelistedToken(address token) public view returns (bool isWhitelisted) {
     uint256 tokenCount = whitelistedTokens.length;
 
@@ -141,6 +145,10 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         ++i;
       }
     }
+  }
+
+  function getGaugeBribes(uint256 epoch, address gauge) external view returns (Bribe[] memory) {
+    return _gaugeEpochBribes[epoch][gauge];
   }
 
   // TODO: We probably want to support scheduling bribes for beyond next epoch
