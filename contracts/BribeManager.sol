@@ -93,7 +93,7 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
 
     // Gauge validation
     require(gauge != address(0), "Gauge not provided");
-    // This covers_addGauge gauge controller check as well then
+    // This covers _addGauge gauge controller check for gauge existance as well then
     require(approvedGauges[gauge], "Gauge not permitted");
     // Skip killed gauges in case the contract state here was not updated to match yet
     require(!ILiquidityGauge(gauge).is_killed(), "Gauge is not active");
@@ -106,7 +106,6 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
 
     // In the event the bribe is added in some small window where the controller has not been
     // checkpointed to the start of the next week
-    // TODO: test
     if (block.timestamp > nextEpochStart) {
       gaugeController.checkpoint();
       nextEpochStart = gaugeController.time_total();
@@ -120,7 +119,6 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     bribe.epochStartTime = nextEpochStart;
     bribe.briber = _msgSender();
 
-    // TODO: test
     _gaugeEpochBribes[nextEpochStart][gauge].push(bribe);
 
     // We know the token is valid at this point
