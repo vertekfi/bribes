@@ -7,6 +7,7 @@ struct Bribe {
   address briber;
   address token;
   address gauge;
+  string protocolId;
 }
 
 interface IRewardHandler {

@@ -29,7 +29,7 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
 
   // mapping(uint256 => Bribe[]) private _epochBribes;
 
-  event BribeAdded(uint256 epoch, address gauge, address token, uint256 amount);
+  event BribeAdded(uint256 epoch, address gauge, address token, uint256 amount, string protocolId);
   event AddWhitelistToken(address token);
   event RemoveWhitelistToken(address token);
   event GaugeAdded(address gauge);
@@ -85,7 +85,20 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
 
   // ====================================== STATE TRANSITIONS ===================================== //
 
-  function addBribe(address token, uint256 amount, address gauge) external nonReentrant {
+  /**
+   * @dev Adds a new bribe to a gauge for the coming epoch
+   *
+   * @param token Token to be given as bribe reward
+   * @param amount Amount of `token` offered for the bribe
+   * @param gauge Address of the gauge the bribe is being offered to
+   * @param protocolId Optional protocol identifier to be associated with the gauge
+   */
+  function addBribe(
+    address token,
+    uint256 amount,
+    address gauge,
+    string memory protocolId
+  ) external nonReentrant {
     // TODO: unit test edge cases
     require(token != address(0), "Token not provided");
     require(isWhitelistedToken(token), "Token not permitted");
@@ -118,6 +131,7 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     bribe.gauge = gauge;
     bribe.epochStartTime = nextEpochStart;
     bribe.briber = _msgSender();
+    bribe.protocolId = protocolId;
 
     _gaugeEpochBribes[nextEpochStart][gauge].push(bribe);
 
@@ -125,7 +139,7 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     // Could send directly to rewarder contract but going in steps for now
     IERC20Upgradeable(token).safeTransferFrom(_msgSender(), address(this), amount);
 
-    emit BribeAdded(nextEpochStart, gauge, token, amount);
+    emit BribeAdded(nextEpochStart, gauge, token, amount, protocolId);
   }
 
   // ====================================== VIEW ===================================== //
