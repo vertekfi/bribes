@@ -14,6 +14,8 @@ const bribeAmount = parseEther("100");
 const DAY = 86400;
 const WEEK = DAY * 7;
 
+const protocolId = "Funny dummy money";
+
 describe("BribeManager", () => {
   describe("Contract State Initialization", () => {
     it("adds initial tokens", async () => {
@@ -38,15 +40,15 @@ describe("BribeManager", () => {
       it("reverts for zero address", async () => {
         const { bribeManager } = await loadFixture(bribeFixture);
 
-        await expect(bribeManager.addBribe(ZERO_ADDRESS, 0, ZERO_ADDRESS)).to.be.revertedWith(
-          "Token not provided"
-        );
+        await expect(
+          bribeManager.addBribe(ZERO_ADDRESS, 0, ZERO_ADDRESS, protocolId)
+        ).to.be.revertedWith("Token not provided");
       });
 
       it("reverts for non whitelist tokens", async () => {
         const { bribeManager } = await loadFixture(bribeFixture);
 
-        await expect(bribeManager.addBribe(WBTC, 0, ZERO_ADDRESS)).to.be.revertedWith(
+        await expect(bribeManager.addBribe(WBTC, 0, ZERO_ADDRESS, protocolId)).to.be.revertedWith(
           "Token not permitted"
         );
       });
@@ -54,9 +56,9 @@ describe("BribeManager", () => {
       it("reverts for a zero amount provided", async () => {
         const { bribeManager } = await loadFixture(bribeFixture);
 
-        await expect(bribeManager.addBribe(TOKENS[0], 0, ZERO_ADDRESS)).to.be.revertedWith(
-          "Zero bribe amount"
-        );
+        await expect(
+          bribeManager.addBribe(TOKENS[0], 0, ZERO_ADDRESS, protocolId)
+        ).to.be.revertedWith("Zero bribe amount");
       });
     });
 
@@ -65,7 +67,7 @@ describe("BribeManager", () => {
         const { bribeManager } = await loadFixture(bribeFixture);
 
         await expect(
-          bribeManager.addBribe(TOKENS[0], bribeAmount, ZERO_ADDRESS)
+          bribeManager.addBribe(TOKENS[0], bribeAmount, ZERO_ADDRESS, protocolId)
         ).to.be.revertedWith("Gauge not provided");
       });
 
@@ -73,7 +75,7 @@ describe("BribeManager", () => {
         const { bribeManager } = await loadFixture(bribeFixture);
 
         await expect(
-          bribeManager.addBribe(TOKENS[0], bribeAmount, BNB_BUSD_GAUGE)
+          bribeManager.addBribe(TOKENS[0], bribeAmount, BNB_BUSD_GAUGE, protocolId)
         ).to.be.revertedWith("Gauge not permitted");
       });
     });
@@ -83,7 +85,7 @@ describe("BribeManager", () => {
 
       // Give valid args and then verify
       const gauge = GAUGES[0];
-      await bribeManager.addBribe(TOKENS[0], bribeAmount, gauge);
+      await bribeManager.addBribe(TOKENS[0], bribeAmount, gauge, protocolId);
       const epochTime = await gaugeController.time_total();
       const gaugeBribes: any[] = await bribeManager.getGaugeBribes(epochTime, gauge);
 
@@ -97,7 +99,7 @@ describe("BribeManager", () => {
         // Give valid args and then verify
         const gauge = GAUGES[0];
         const token = TOKENS[0];
-        await bribeManager.addBribe(token, bribeAmount, gauge);
+        await bribeManager.addBribe(token, bribeAmount, gauge, protocolId);
         const controllerNextEpochTime = await gaugeController.time_total();
         const gaugeBribes: any[] = await bribeManager.getGaugeBribes(
           controllerNextEpochTime,
@@ -140,7 +142,7 @@ describe("BribeManager", () => {
 
         const controllerTimeBefore = (await gaugeController.time_total()).toNumber();
 
-        await bribeManager.addBribe(token, bribeAmount, gauge);
+        await bribeManager.addBribe(token, bribeAmount, gauge, protocolId);
 
         // Make sure epoch was updated
         controllerNextEpochTime = (await gaugeController.time_total()).toNumber();
