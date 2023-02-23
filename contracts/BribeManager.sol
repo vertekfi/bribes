@@ -4,6 +4,7 @@ pragma solidity 0.8.12;
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeable.sol";
 
 import "./interfaces/IGaugeController.sol";
 import "./interfaces/ILiquidityGauge.sol";
@@ -11,6 +12,7 @@ import "./interfaces/IRewardHandler.sol";
 
 contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
   using SafeERC20Upgradeable for IERC20Upgradeable;
+  using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
 
   bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
@@ -18,8 +20,7 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
 
   // public rewardHandler;
 
-  // token => allowed
-  address[] public whitelistedTokens;
+  EnumerableSetUpgradeable.AddressSet private _whitelistedTokens;
 
   // gauge => approved
   mapping(address => bool) public approvedGauges;
@@ -27,9 +28,12 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
   // epoch start time => gauge => list of bribes for that epoch
   mapping(uint256 => mapping(address => Bribe[])) private _gaugeEpochBribes;
 
-  // mapping(uint256 => Bribe[]) private _epochBribes;
+  // Tmp placeholder
+  // Could use some sort of enumerable set
+  // bytes/string can be used interchangeable
+  //  mapping(string => bool) private _protocols;
 
-  event BribeAdded(uint256 epoch, address gauge, address token, uint256 amount, string protocolId);
+  event BribeAdded(uint256 epoch, address gauge, address token, uint256 amount);
   event AddWhitelistToken(address token);
   event RemoveWhitelistToken(address token);
   event GaugeAdded(address gauge);
@@ -91,17 +95,11 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
    * @param token Token to be given as bribe reward
    * @param amount Amount of `token` offered for the bribe
    * @param gauge Address of the gauge the bribe is being offered to
-   * @param protocolId Optional protocol identifier to be associated with the gauge
    */
-  function addBribe(
-    address token,
-    uint256 amount,
-    address gauge,
-    string memory protocolId
-  ) external nonReentrant {
+  function addBribe(address token, uint256 amount, address gauge) external nonReentrant {
     // TODO: unit test edge cases
     require(token != address(0), "Token not provided");
-    require(isWhitelistedToken(token), "Token not permitted");
+    require(_whitelistedTokens.contains(token), "Token not permitted");
     require(amount > 0, "Zero bribe amount");
 
     // Gauge validation
@@ -124,6 +122,10 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
       nextEpochStart = gaugeController.time_total();
     }
 
+    // if (protocolId == "") {
+
+    // }
+
     // Single propery writes can save gas
     Bribe memory bribe;
     bribe.token = token;
@@ -131,7 +133,7 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     bribe.gauge = gauge;
     bribe.epochStartTime = nextEpochStart;
     bribe.briber = _msgSender();
-    bribe.protocolId = protocolId;
+    // bribe.protocolId = protocolId;
 
     _gaugeEpochBribes[nextEpochStart][gauge].push(bribe);
 
@@ -139,24 +141,13 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     // Could send directly to rewarder contract but going in steps for now
     IERC20Upgradeable(token).safeTransferFrom(_msgSender(), address(this), amount);
 
-    emit BribeAdded(nextEpochStart, gauge, token, amount, protocolId);
+    emit BribeAdded(nextEpochStart, gauge, token, amount);
   }
 
   // ====================================== VIEW ===================================== //
 
-  function isWhitelistedToken(address token) public view returns (bool isWhitelisted) {
-    uint256 tokenCount = whitelistedTokens.length;
-
-    for (uint i = 0; i < tokenCount; ) {
-      if (whitelistedTokens[i] == token) {
-        isWhitelisted = true;
-        break;
-      }
-
-      unchecked {
-        ++i;
-      }
-    }
+  function isWhitelistedToken(address token) public view returns (bool) {
+    return _whitelistedTokens.contains(token);
   }
 
   function getGaugeBribes(uint256 epoch, address gauge) external view returns (Bribe[] memory) {
@@ -202,18 +193,17 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
 
   function _addToken(address token) internal {
     require(token != address(0), "Token not provided");
-    require(!isWhitelistedToken(token), "Token already added");
 
-    whitelistedTokens.push(token);
+    // Skipping any additional checks for gas. Duplicates just get skipped
+    _whitelistedTokens.add(token);
 
     emit AddWhitelistToken(token);
   }
 
   function removeWhiteListToken(address token) external onlyRole(ADMIN_ROLE) {
-    // require(whitelistedTokens[token], "Token not whitelisted");
+    // Skipping any additional checks for gas
+    _whitelistedTokens.remove(token);
 
-    // whitelistedTokens[token] = false;
-    // TODO: delete at index and shift token list by moving last item into deleted index
     emit RemoveWhitelistToken(token);
   }
 

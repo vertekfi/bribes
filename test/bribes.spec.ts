@@ -14,7 +14,7 @@ const bribeAmount = parseEther("100");
 const DAY = 86400;
 const WEEK = DAY * 7;
 
-const protocolId = "Funny dummy money";
+// const protocolId = "Funny dummy money";
 
 describe("BribeManager", () => {
   describe("Contract State Initialization", () => {
@@ -40,15 +40,15 @@ describe("BribeManager", () => {
       it("reverts for zero address", async () => {
         const { bribeManager } = await loadFixture(bribeFixture);
 
-        await expect(
-          bribeManager.addBribe(ZERO_ADDRESS, 0, ZERO_ADDRESS, protocolId)
-        ).to.be.revertedWith("Token not provided");
+        await expect(bribeManager.addBribe(ZERO_ADDRESS, 0, ZERO_ADDRESS)).to.be.revertedWith(
+          "Token not provided"
+        );
       });
 
       it("reverts for non whitelist tokens", async () => {
         const { bribeManager } = await loadFixture(bribeFixture);
 
-        await expect(bribeManager.addBribe(WBTC, 0, ZERO_ADDRESS, protocolId)).to.be.revertedWith(
+        await expect(bribeManager.addBribe(WBTC, 0, ZERO_ADDRESS)).to.be.revertedWith(
           "Token not permitted"
         );
       });
@@ -56,9 +56,9 @@ describe("BribeManager", () => {
       it("reverts for a zero amount provided", async () => {
         const { bribeManager } = await loadFixture(bribeFixture);
 
-        await expect(
-          bribeManager.addBribe(TOKENS[0], 0, ZERO_ADDRESS, protocolId)
-        ).to.be.revertedWith("Zero bribe amount");
+        await expect(bribeManager.addBribe(TOKENS[0], 0, ZERO_ADDRESS)).to.be.revertedWith(
+          "Zero bribe amount"
+        );
       });
     });
 
@@ -67,7 +67,7 @@ describe("BribeManager", () => {
         const { bribeManager } = await loadFixture(bribeFixture);
 
         await expect(
-          bribeManager.addBribe(TOKENS[0], bribeAmount, ZERO_ADDRESS, protocolId)
+          bribeManager.addBribe(TOKENS[0], bribeAmount, ZERO_ADDRESS)
         ).to.be.revertedWith("Gauge not provided");
       });
 
@@ -75,7 +75,7 @@ describe("BribeManager", () => {
         const { bribeManager } = await loadFixture(bribeFixture);
 
         await expect(
-          bribeManager.addBribe(TOKENS[0], bribeAmount, BNB_BUSD_GAUGE, protocolId)
+          bribeManager.addBribe(TOKENS[0], bribeAmount, BNB_BUSD_GAUGE)
         ).to.be.revertedWith("Gauge not permitted");
       });
     });
@@ -85,7 +85,7 @@ describe("BribeManager", () => {
 
       // Give valid args and then verify
       const gauge = GAUGES[0];
-      await bribeManager.addBribe(TOKENS[0], bribeAmount, gauge, protocolId);
+      await bribeManager.addBribe(TOKENS[0], bribeAmount, gauge);
       const epochTime = await gaugeController.time_total();
       const gaugeBribes: any[] = await bribeManager.getGaugeBribes(epochTime, gauge);
 
@@ -99,7 +99,7 @@ describe("BribeManager", () => {
         // Give valid args and then verify
         const gauge = GAUGES[0];
         const token = TOKENS[0];
-        await bribeManager.addBribe(token, bribeAmount, gauge, protocolId);
+        await bribeManager.addBribe(token, bribeAmount, gauge);
         const controllerNextEpochTime = await gaugeController.time_total();
         const gaugeBribes: any[] = await bribeManager.getGaugeBribes(
           controllerNextEpochTime,
@@ -114,8 +114,8 @@ describe("BribeManager", () => {
         expect(gaugeBribe.token).to.equal(token);
       });
 
-      it("adds checkpoints the controller to set epoch time correctly", async () => {
-        const { bribeManager, gaugeController, adminAccount } = await loadFixture(bribeFixture);
+      it("checkpoints the controller to set epoch time correctly", async () => {
+        const { bribeManager, gaugeController } = await loadFixture(bribeFixture);
 
         /**
          * Validate that a bribe added during a time when the controller checkpoint is lagging, still has the epochStartTime set correctly.
@@ -142,7 +142,7 @@ describe("BribeManager", () => {
 
         const controllerTimeBefore = (await gaugeController.time_total()).toNumber();
 
-        await bribeManager.addBribe(token, bribeAmount, gauge, protocolId);
+        await bribeManager.addBribe(token, bribeAmount, gauge);
 
         // Make sure epoch was updated
         controllerNextEpochTime = (await gaugeController.time_total()).toNumber();
