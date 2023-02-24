@@ -25,24 +25,10 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     // gauge => approved
     mapping(address => bool) public approvedGauges;
 
-    // epoch start time => gauge => list of bribes for that epoch
-    mapping(uint256 => mapping(address => Bribe[])) private _gaugeEpochBribes;
+    // gauge => epoch start time => list of bribes for that epoch
+    mapping(address => mapping(uint256 => Bribe[])) private _gaugeEpochBribes;
 
-    // Approve projects can associate a name to their "briber" account
-    // Add ability to update things as needed
-
-    // bytes32 foo = "hello";
-    // string memory bar = string(abi.encodePacked(foo));
-    // bytes32 memory barToBytes = bytes32(abi.encodePacked(bar))
-
-    // address someAddress = address(uint160(bytes20(b)));
-
-    // bytes32 → bytes32 (Bytes32ToBytes32Map)
-
-    // project briber "manager" account => protocol ID
-    mapping(address => string) private _protocolID;
-
-    event BribeAdded(uint256 epoch, address gauge, address token, uint256 amount);
+    event BribeAdded(uint256 epoch, address gauge, address token, uint256 amount, address briber);
     event AddWhitelistToken(address token);
     event RemoveWhitelistToken(address token);
     event GaugeAdded(address gauge);
@@ -140,13 +126,13 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         bribe.briber = _msgSender();
         // bribe.protocolId = protocolId;
 
-        _gaugeEpochBribes[nextEpochStart][gauge].push(bribe);
+        _gaugeEpochBribes[gauge][nextEpochStart].push(bribe);
 
         // We know the token is valid at this point
         // Could send directly to rewarder contract but going in steps for now
         IERC20Upgradeable(token).safeTransferFrom(_msgSender(), address(this), amount);
 
-        emit BribeAdded(nextEpochStart, gauge, token, amount);
+        emit BribeAdded(nextEpochStart, gauge, token, amount, _msgSender());
     }
 
     // ====================================== VIEW ===================================== //
@@ -155,8 +141,8 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         return _whitelistedTokens.contains(token);
     }
 
-    function getGaugeBribes(uint256 epoch, address gauge) external view returns (Bribe[] memory) {
-        return _gaugeEpochBribes[epoch][gauge];
+    function getGaugeBribes(address gauge, uint256 epoch) external view returns (Bribe[] memory) {
+        return _gaugeEpochBribes[gauge][epoch];
     }
 
     // TODO: We probably want to support scheduling bribes for beyond next epoch

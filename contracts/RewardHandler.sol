@@ -23,17 +23,25 @@ contract RewardHandler is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     }
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant DISTRIBUTOR_ROLE = keccak256("DISTRIBUTOR_ROLE");
 
     // address public bribeManager;
     IVault private _vault;
 
+    // TODO: Map gauge..???
     // Recorded distributions
     // channelId > distributionId
     mapping(bytes32 => uint256) private _nextDistributionId;
+
+    // TODO: Map gauge
     // channelId > distributionId > root
     mapping(bytes32 => mapping(uint256 => bytes32)) private _distributionRoot;
+
+    // TODO: Map gauge
     // channelId > claimer > distributionId / 256 (word index) -> bitmap
     mapping(bytes32 => mapping(address => mapping(uint256 => uint256))) private _claimedBitmap;
+
+    // TODO: Map gauge
     // channelId > balance
     mapping(bytes32 => uint256) private _remainingBalance;
 
@@ -71,6 +79,7 @@ contract RewardHandler is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
 
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _grantRole(ADMIN_ROLE, _msgSender());
+        _grantRole(DISTRIBUTOR_ROLE, _msgSender());
     }
 
     function getVault() public view returns (IVault) {
@@ -172,15 +181,41 @@ contract RewardHandler is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     }
 
     /**
-     * @notice Allows a distributor to add funds to the contract as a merkle tree.
+     * TODO: Something like this would be the link to the BribeManager
+     * to create some sort of initial record (if needed or makes any useful sense)
+     * The gauge, epoch, bribers, etc., references could be set at bribe creation.
+     * `createDistribution` could then be provided arguments to verify/match up the data
+     * for a distribution to make sure things align.
+     */
+    function createBribeDistributionRecord() external {
+        // Claiming and verification could happen through the BribeManager
+        // using an onlyManager like modifier or assigning an auth role.
+        // Extra detailed state might not be needed here then.
+        // Dis worth exploring as an option I think
+        //
+    }
+
+    /**
+     * @notice Allows the distributor bot account to add funds to the contract as a merkle tree.
      */
     function createDistribution(
         IERC20Upgradeable token,
         bytes32 merkleRoot,
         uint256 amount,
         uint256 distributionId
-    ) external {
-        address distributor = msg.sender;
+    ) external onlyRole(DISTRIBUTOR_ROLE) {
+        // TODO: What would make up a "distribution", for our use case,
+        // fits the same structure as the Bribe struct.
+        // So BribeManager, could, create an initial reference or link (nonce like thing, byte id, something, etc.)
+        // with this contract in order for this contract to later, at time of distribution,
+        // pull the needed data from the BribeManager as/if needed.
+        // Would avoid duplicate/overlapping state maybe.
+
+        // Off chain needs to provide a merkle root
+        // Root needs to be associated with a gauge, and...
+        // Generate test root and see if that provides insight into data structure needed here
+
+        address distributor = msg.sender; // This would be a briber account reference
 
         bytes32 channelId = _getChannelId(token, distributor);
         require(
@@ -229,6 +264,12 @@ contract RewardHandler is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         IERC20Upgradeable[] memory tokens,
         bool asInternalBalance
     ) internal {
+        // TODO: Needs to be associated with a gauge
+        // Can call to bribe manager to get a gauge/bribe reference
+        // and do some verification anywhere needed in this contract.
+
+        // Users will be rewarded by gauge. So needs to be factored in some how here I believe
+
         uint256[] memory amounts = new uint256[](tokens.length);
         Claim memory claim;
 
@@ -295,6 +336,12 @@ contract RewardHandler is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         uint256 wordIndex,
         uint256 newClaimsBitmap
     ) private {
+        // TODO: Needs to be associated with a gauge
+        // Can call to bribe manager to get a gauge/bribe reference
+        // and do some verification anywhere needed in this contract.
+
+        // Users will be rewarded by gauge. So needs to be factored in some how here I believe
+
         uint256 currentBitmap = _claimedBitmap[channelId][claimer][wordIndex];
 
         // All newly set bits must not have been previously set
