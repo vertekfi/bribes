@@ -217,13 +217,18 @@ contract RewardHandler is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
 
         address distributor = msg.sender; // This would be a briber account reference
 
+        // channel id gauge, token, epoch?
+        // Should probably be associated with briber account?
         bytes32 channelId = _getChannelId(token, distributor);
         require(
             _nextDistributionId[channelId] == distributionId || _nextDistributionId[channelId] == 0,
             "invalid distribution ID"
         );
+
+        // From BribeManager or have manager transfer in, etc.
         token.safeTransferFrom(distributor, address(this), amount);
 
+        // Approve vault to manage balance for token
         token.approve(address(getVault()), amount);
         IVault.UserBalanceOp[] memory ops = new IVault.UserBalanceOp[](1);
 

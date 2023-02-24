@@ -29,6 +29,7 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     mapping(address => mapping(uint256 => Bribe[])) private _gaugeEpochBribes;
 
     event BribeAdded(uint256 epoch, address gauge, address token, uint256 amount, address briber);
+    event BribeAmountUpdated(address gauge, address token, uint256 amount);
     event AddWhitelistToken(address token);
     event RemoveWhitelistToken(address token);
     event GaugeAdded(address gauge);
@@ -135,14 +136,64 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         emit BribeAdded(nextEpochStart, gauge, token, amount, _msgSender());
     }
 
+    function increaseBribeAmount(
+        address gauge,
+        uint256 epoch,
+        uint256 index,
+        uint256 amount
+    ) external nonReentrant {
+        require(amount != 0, "Zero increase amount");
+
+        // getBribe runs checks to make sure bribe exists
+        Bribe memory bribe = getBribe(gauge, epoch, index);
+
+        // Caller needs to be the briber for the bribe
+        require(_msgSender() == bribe.briber, "Caller can not update bribe");
+        // The bribe epoch end needs to not have passed
+        require(block.timestamp < bribe.epochStartTime + 1 weeks, "Bribe epoch has ended");
+
+        // Increase amount. Write straight to storage instance once checks have passed
+        // Memory instance used for initial checks
+        // (good? worth it? Maybe just let them run the gas if someone is trying some funny shit)
+        _gaugeEpochBribes[gauge][epoch][index].amount += amount;
+
+        // Transfer from caller after checks and state updates
+        IERC20Upgradeable(bribe.token).safeTransferFrom(_msgSender(), address(this), amount);
+
+        emit BribeAmountUpdated(gauge, bribe.token, amount);
+    }
+
     // ====================================== VIEW ===================================== //
 
+    /// @dev Checks whether a token has been added to the token whitelist
     function isWhitelistedToken(address token) public view returns (bool) {
         return _whitelistedTokens.contains(token);
     }
 
+    /// @dev Gets the list of bribes for a gauge for a given epoch
     function getGaugeBribes(address gauge, uint256 epoch) external view returns (Bribe[] memory) {
         return _gaugeEpochBribes[gauge][epoch];
+    }
+
+    /// @dev Gets a single bribe record for a gauge by index for a given epoch
+    function getBribe(
+        address gauge,
+        uint256 epoch,
+        uint256 index
+    ) public view returns (Bribe memory) {
+        // TODO: Test various edge cases
+        // Test this for learning also. Mappings are init to default values
+        // Try testing scenarios where what not thinking of or accounting for these(and or others) could let happen
+        require(gauge != address(0), "Invalid gauge");
+        require(epoch > 0, "Invalid epoch");
+
+        Bribe[] memory bribes = _gaugeEpochBribes[gauge][epoch];
+
+        // TODO: Test various edge cases
+        require(index < bribes.length, "Invalid index");
+        require(bribes.length > 0, "No bribes for epoch");
+
+        return bribes[index];
     }
 
     // TODO: We probably want to support scheduling bribes for beyond next epoch
