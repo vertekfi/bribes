@@ -4,38 +4,53 @@ pragma solidity 0.8.12;
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableMapUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/cryptography/MerkleProofUpgradeable.sol";
 
-import "./interfaces/IRewardHandler.sol";
+import "./interfaces/IVault.sol";
 
-contract RewardHandler is AccessControlUpgradeable, ReentrancyGuardUpgradeable, IRewardHandler {
+contract RewardHandler is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
+  using SafeERC20Upgradeable for IERC20Upgradeable;
   using EnumerableMapUpgradeable for EnumerableMapUpgradeable.AddressToUintMap;
 
-  struct GaugeEpochReward {
-    uint256 epochTime;
-    bytes32 rootHash;
-    address[] rewardTokens;
+  struct Claim {
+    uint256 distributionId;
+    uint256 balance;
+    address distributor;
+    uint256 tokenIndex;
+    bytes32[] merkleProof;
   }
 
   bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
-  address public bribeManager;
+  // address public bribeManager;
+  IVault private _vault;
 
-  // epoch => gauge => tokenEnumerableMapping(token => amount)
-  mapping(uint256 => mapping(address => EnumerableMapUpgradeable.AddressToUintMap))
-    private _epochRewards;
+  // Recorded distributions
+  // channelId > distributionId
+  mapping(bytes32 => uint256) private _nextDistributionId;
+  // channelId > distributionId > root
+  mapping(bytes32 => mapping(uint256 => bytes32)) private _distributionRoot;
+  // channelId > claimer > distributionId / 256 (word index) -> bitmap
+  mapping(bytes32 => mapping(address => mapping(uint256 => uint256))) private _claimedBitmap;
+  // channelId > balance
+  mapping(bytes32 => uint256) private _remainingBalance;
 
-  // epoch => user => claimed
-  mapping(uint256 => mapping(address => bool)) private _userClaims;
-
-  // epoch => gauge => merkle root
-  mapping(uint256 => mapping(address => bytes32)) private _epochRootHashes;
-
-  modifier onlyManager() {
-    require(msg.sender == bribeManager, "Not the manager");
-    _;
-  }
-
-  event BribeManagerSet(address oldManager, address newManager);
+  event DistributionAdded(
+    address indexed distributor,
+    IERC20Upgradeable indexed token,
+    uint256 distributionId,
+    bytes32 merkleRoot,
+    uint256 amount
+  );
+  event DistributionClaimed(
+    address indexed distributor,
+    IERC20Upgradeable indexed token,
+    uint256 distributionId,
+    address indexed claimer,
+    address recipient,
+    uint256 amount
+  );
 
   /// @custom:oz-upgrades-unsafe-allow constructor
   constructor() {
@@ -47,8 +62,8 @@ contract RewardHandler is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
     _disableInitializers();
   }
 
-  function initialize(address _bribeManger) public initializer {
-    require(_bribeManger != address(0), "Manager not provided");
+  function initialize(address vault) public initializer {
+    require(vault != address(0), "Vault not provided");
 
     // Call all base initializers
     __AccessControl_init();
@@ -57,68 +72,132 @@ contract RewardHandler is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
     _grantRole(ADMIN_ROLE, _msgSender());
   }
 
-  function claimRewards(uint256[] memory epochs, address[] memory gauges) external nonReentrant {
-    require(epochs.length == gauges.length, "Mismatched lengths");
-    // is valid gauge
-    // is valid epoch
+  function getVault() public view returns (IVault) {
+    return _vault;
+  }
 
-    // Use end of epoch week weights
-    // Users have voting power as soon as they lock
-    // Which can of course happen all throughout an epoch
-    // So end of week balances is the only baseline that can be used
+  // Helper functions
 
-    // Or use merkle tree and provide proofs here
+  function _getChannelId(
+    IERC20Upgradeable token,
+    address distributor
+  ) private pure returns (bytes32) {
+    return keccak256(abi.encodePacked(token, distributor));
+  }
 
-    uint256 epochCount = epochs.length;
-    address user = _msgSender();
+  function _processClaims(
+    address claimer,
+    address recipient,
+    Claim[] memory claims,
+    IERC20Upgradeable[] memory tokens,
+    bool asInternalBalance
+  ) internal {
+    uint256[] memory amounts = new uint256[](tokens.length);
+    Claim memory claim;
 
-    for (uint256 i = 0; i < epochCount; ) {
-      require(!_userClaims[epochs[i]][user], "Already claimed");
+    for (uint256 i = 0; i < claims.length; i++) {
+      claim = claims[i];
 
-      _userClaims[epochs[i]][user] = true;
+      (uint256 distributionWordIndex, uint256 distributionBitIndex) = _getIndices(
+        claim.distributionId
+      );
 
-      unchecked {
-        ++i;
-      }
+      bytes32 currentChannelId = _getChannelId(tokens[claim.tokenIndex], claim.distributor);
+      uint256 currentBits = 1 << distributionBitIndex;
+      _setClaimedBits(currentChannelId, claimer, distributionWordIndex, currentBits);
+      _deductClaimedBalance(currentChannelId, claim.balance);
+
+      require(
+        _verifyClaim(
+          currentChannelId,
+          claim.distributionId,
+          claimer,
+          claim.balance,
+          claim.merkleProof
+        ),
+        "incorrect merkle proof"
+      );
+
+      // Note that balances to claim are here accumulated *per token*, independent of the distribution channel and
+      // claims set accounting.
+      amounts[claim.tokenIndex] += claim.balance;
+
+      emit DistributionClaimed(
+        claim.distributor,
+        tokens[claim.tokenIndex],
+        claim.distributionId,
+        claimer,
+        recipient,
+        claim.balance
+      );
     }
+
+    IVault.UserBalanceOpKind kind = asInternalBalance
+      ? IVault.UserBalanceOpKind.TRANSFER_INTERNAL
+      : IVault.UserBalanceOpKind.WITHDRAW_INTERNAL;
+    IVault.UserBalanceOp[] memory ops = new IVault.UserBalanceOp[](tokens.length);
+
+    for (uint256 i = 0; i < tokens.length; i++) {
+      ops[i] = IVault.UserBalanceOp({
+        asset: address(tokens[i]),
+        amount: amounts[i],
+        sender: address(this),
+        recipient: payable(recipient),
+        kind: kind
+      });
+    }
+    getVault().manageUserBalance(ops);
   }
 
-  // ====================================== ONLY MANAGER ===================================== //
+  /**
+   * @dev Sets the bits set in `newClaimsBitmap` for the corresponding distribution.
+   */
+  function _setClaimedBits(
+    bytes32 channelId,
+    address claimer,
+    uint256 wordIndex,
+    uint256 newClaimsBitmap
+  ) private {
+    uint256 currentBitmap = _claimedBitmap[channelId][claimer][wordIndex];
 
-  function submitGaugeBribe(Bribe memory bribe) external onlyManager {
-    //
+    // All newly set bits must not have been previously set
+    require((newClaimsBitmap & currentBitmap) == 0, "cannot claim twice");
+
+    _claimedBitmap[channelId][claimer][wordIndex] = currentBitmap | newClaimsBitmap;
   }
 
-  // ====================================== ADMIN ===================================== //
+  /**
+   * @dev Deducts `balanceBeingClaimed` from a distribution channel's allocation. This isolates tokens accross
+   * distribution channels, and prevents claims for one channel from using the tokens of another one.
+   */
+  function _deductClaimedBalance(bytes32 channelId, uint256 balanceBeingClaimed) private {
+    require(
+      _remainingBalance[channelId] >= balanceBeingClaimed,
+      "distributor hasn't provided sufficient tokens for claim"
+    );
+    _remainingBalance[channelId] -= balanceBeingClaimed;
+  }
 
-  // Not sure this is the route. May be the only efficient way of doing it though
-  //
-  // The rewards are simply for people who voted for that gauge during that epoch
-  // So we are submitting a hashed tree of
-  // - user address
-  // - ve weight at the start of that epoch (this can be pulled in this contract though)
-  // - ve total weight (this can be pulled in this contract though)
-  // - user is entitled to some % of the bribe token(s) for that gauge for that epoch
-  //
-  // -> -> So we really just need a list of addresses who voted for the gauge...
-  // What's the most gas/cost efficient way of doing that?
-  // Just pushing addresses onto an array seems no bueno
-  // Still merkle tree with just addresses?
-  //
-  // function submitEpochVoterInfo(
-  //   bytes32 merkleRoot,
-  //   uint256 epochStartTime,
-  //   address gauge
-  // ) external onlyRole(ADMIN_ROLE) {
-  //   //
-  // }
+  function _verifyClaim(
+    bytes32 channelId,
+    uint256 distributionId,
+    address claimer,
+    uint256 claimedBalance,
+    bytes32[] memory merkleProof
+  ) internal view returns (bool) {
+    bytes32 leaf = keccak256(abi.encodePacked(claimer, claimedBalance));
+    return
+      MerkleProofUpgradeable.verify(
+        merkleProof,
+        _distributionRoot[channelId][distributionId],
+        leaf
+      );
+  }
 
-  function setBribeManager(address manager) external onlyRole(ADMIN_ROLE) {
-    require(manager != address(0), "Manager not provided");
-
-    address oldManager = bribeManager;
-    bribeManager = manager;
-
-    emit BribeManagerSet(oldManager, manager);
+  function _getIndices(
+    uint256 distributionId
+  ) private pure returns (uint256 distributionWordIndex, uint256 distributionBitIndex) {
+    distributionWordIndex = distributionId / 256;
+    distributionBitIndex = distributionId % 256;
   }
 }

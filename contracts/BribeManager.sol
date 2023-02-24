@@ -28,10 +28,19 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
   // epoch start time => gauge => list of bribes for that epoch
   mapping(uint256 => mapping(address => Bribe[])) private _gaugeEpochBribes;
 
-  // Tmp placeholder
-  // Could use some sort of enumerable set
-  // bytes/string can be used interchangeable
-  //  mapping(string => bool) private _protocols;
+  // Approve projects can associate a name to their "briber" account
+  // Add ability to update things as needed
+
+  // bytes32 foo = "hello";
+  // string memory bar = string(abi.encodePacked(foo));
+  // bytes32 memory barToBytes = bytes32(abi.encodePacked(bar))
+
+  // address someAddress = address(uint160(bytes20(b)));
+
+  // bytes32 → bytes32 (Bytes32ToBytes32Map)
+
+  // project briber "manager" account => protocol ID
+  mapping(address => string) private _protocolID;
 
   event BribeAdded(uint256 epoch, address gauge, address token, uint256 amount);
   event AddWhitelistToken(address token);
@@ -121,10 +130,6 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
       gaugeController.checkpoint();
       nextEpochStart = gaugeController.time_total();
     }
-
-    // if (protocolId == "") {
-
-    // }
 
     // Single propery writes can save gas
     Bribe memory bribe;
