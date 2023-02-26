@@ -2,18 +2,15 @@
 pragma solidity 0.8.12;
 
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableMapUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/cryptography/MerkleProofUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/cryptography/MerkleProofUpgradeable.sol";
 
-import "./interfaces/IVault.sol";
-import "./interfaces/IDistributorCallback.sol";
 import "./interfaces/IRewardHandler.sol";
+import "./interfaces/IVault.sol";
 
-contract RewardHandler is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
+contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20Upgradeable for IERC20Upgradeable;
-    using EnumerableMapUpgradeable for EnumerableMapUpgradeable.AddressToUintMap;
 
     struct Claim {
         uint256 distributionId;
@@ -23,15 +20,13 @@ contract RewardHandler is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         bytes32[] merkleProof;
     }
 
-    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant DISTRIBUTOR_ROLE = keccak256("DISTRIBUTOR_ROLE");
 
-    // address public bribeManager;
     IVault private _vault;
 
     // Recorded distributions
     // channelId > distributionId
-    mapping(bytes32 => uint256) private _nextDistributionId;
+    mapping(bytes32 => uint256) private _nextDistributionId; // Acts as a sort of nonce for a "channel"
 
     // channelId > distributionId > root
     mapping(bytes32 => mapping(uint256 => bytes32)) private _distributionRoot;
@@ -40,17 +35,19 @@ contract RewardHandler is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     mapping(bytes32 => mapping(address => mapping(uint256 => uint256))) private _claimedBitmap;
 
     // channelId > balance
+    // Remaining balance for a token for/from a briber
+    // The "channel" is created/enabled through the combination of their account address and the token address
     mapping(bytes32 => uint256) private _remainingBalance;
 
     event DistributionAdded(
-        address indexed distributor,
+        address indexed briber,
         IERC20Upgradeable indexed token,
         uint256 distributionId,
         bytes32 merkleRoot,
         uint256 amount
     );
     event DistributionClaimed(
-        address indexed distributor,
+        address indexed briber,
         IERC20Upgradeable indexed token,
         uint256 distributionId,
         address indexed claimer,
@@ -71,11 +68,9 @@ contract RewardHandler is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     function initialize(address vault) public initializer {
         require(vault != address(0), "Vault not provided");
 
-        // Call all base initializers
-        __AccessControl_init();
+        _vault = IVault(vault);
 
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
-        _grantRole(ADMIN_ROLE, _msgSender());
         _grantRole(DISTRIBUTOR_ROLE, _msgSender());
     }
 
@@ -85,18 +80,18 @@ contract RewardHandler is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
 
     function getDistributionRoot(
         IERC20Upgradeable token,
-        address distributor,
+        address briber,
         uint256 distributionId
     ) external view returns (bytes32) {
-        bytes32 channelId = _getChannelId(token, distributor);
+        bytes32 channelId = _getChannelId(token, briber);
         return _distributionRoot[channelId][distributionId];
     }
 
     function getRemainingBalance(
         IERC20Upgradeable token,
-        address distributor
+        address briber
     ) external view returns (uint256) {
-        bytes32 channelId = _getChannelId(token, distributor);
+        bytes32 channelId = _getChannelId(token, briber);
         return _remainingBalance[channelId];
     }
 
@@ -105,21 +100,21 @@ contract RewardHandler is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
      */
     function getNextDistributionId(
         IERC20Upgradeable token,
-        address distributor
+        address briber
     ) external view returns (uint256) {
-        bytes32 channelId = _getChannelId(token, distributor);
+        bytes32 channelId = _getChannelId(token, briber);
         return _nextDistributionId[channelId];
     }
 
     function isClaimed(
         IERC20Upgradeable token,
-        address distributor,
+        address briber,
         uint256 distributionId,
         address claimer
     ) public view returns (bool) {
         (uint256 distributionWordIndex, uint256 distributionBitIndex) = _getIndices(distributionId);
 
-        bytes32 channelId = _getChannelId(token, distributor);
+        bytes32 channelId = _getChannelId(token, briber);
         return
             (_claimedBitmap[channelId][claimer][distributionWordIndex] &
                 (1 << distributionBitIndex)) != 0;
@@ -127,13 +122,14 @@ contract RewardHandler is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
 
     function verifyClaim(
         IERC20Upgradeable token,
-        address distributor,
+        address briber,
         uint256 distributionId,
         address claimer,
         uint256 claimedBalance,
         bytes32[] memory merkleProof
     ) external view returns (bool) {
-        bytes32 channelId = _getChannelId(token, distributor);
+        bytes32 channelId = _getChannelId(token, briber);
+
         return _verifyClaim(channelId, distributionId, claimer, claimedBalance, merkleProof);
     }
 
@@ -150,104 +146,12 @@ contract RewardHandler is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         _processClaims(claimer, claimer, claims, tokens, false);
     }
 
-    /**
-     * @notice Allows a user to claim their own multiple distributions to internal balance.
-     */
-    function claimDistributionsToInternalBalance(
-        address claimer,
-        Claim[] memory claims,
-        IERC20Upgradeable[] memory tokens
-    ) external {
-        require(msg.sender == claimer, "user must claim own balance");
-        _processClaims(claimer, claimer, claims, tokens, true);
-    }
-
-    /**
-     * @notice Allows a user to claim their own several distributions to a callback.
-     */
-    function claimDistributionsWithCallback(
-        address claimer,
-        Claim[] memory claims,
-        IERC20Upgradeable[] memory tokens,
-        IDistributorCallback callbackContract,
-        bytes calldata callbackData
-    ) external {
-        require(msg.sender == claimer, "user must claim own balance");
-        _processClaims(claimer, address(callbackContract), claims, tokens, true);
-        callbackContract.distributorCallback(callbackData);
-    }
-
-    /**
-     * TODO: Something like this would be the link to the BribeManager
-     * to create some sort of initial record (if needed or makes any useful sense)
-     * The gauge, epoch, bribers, etc., references could be set at bribe creation.
-     * `createDistribution` could then be provided arguments to verify/match up the data
-     * for a distribution to make sure things align.
-     */
-    function createBribeDistributionRecord() external {
-        // Claiming and verification could happen through the BribeManager
-        // using an onlyManager like modifier or assigning an auth role.
-        // Extra detailed state might not be needed here then.
-        // Dis worth exploring as an option I think
-        //
-    }
-
-    /**
-     * @notice Allows the distributor bot account to add funds to the contract as a merkle tree.
-     */
-    function createDistribution(
-        IERC20Upgradeable token,
-        bytes32 merkleRoot,
-        uint256 amount,
-        uint256 distributionId,
-        Bribe memory bribe
-    ) external onlyRole(DISTRIBUTOR_ROLE) {
-        address distributor = msg.sender;
-
-        bytes32 channelId = _getChannelId(token, distributor);
-        require(
-            _nextDistributionId[channelId] == distributionId || _nextDistributionId[channelId] == 0,
-            "invalid distribution ID"
-        );
-
-        // From BribeManager or have manager transfer in, etc.
-        token.safeTransferFrom(distributor, address(this), amount);
-
-        // Approve vault to manage balance for token
-        token.approve(address(getVault()), amount);
-        IVault.UserBalanceOp[] memory ops = new IVault.UserBalanceOp[](1);
-
-        ops[0] = IVault.UserBalanceOp({
-            asset: address(token),
-            amount: amount,
-            sender: address(this),
-            recipient: payable(address(this)),
-            kind: IVault.UserBalanceOpKind.DEPOSIT_INTERNAL
-        });
-
-        getVault().manageUserBalance(ops);
-
-        _remainingBalance[channelId] += amount;
-        _distributionRoot[channelId][distributionId] = merkleRoot;
-        _nextDistributionId[channelId] = distributionId + 1;
-
-        emit DistributionAdded(distributor, token, distributionId, merkleRoot, amount);
-    }
-
     // Helper functions
 
-    function _getChannelId(
-        IERC20Upgradeable token,
-        address distributor
-    ) private pure returns (bytes32) {
-        return keccak256(abi.encodePacked(token, distributor));
+    function _getChannelId(IERC20Upgradeable token, address briber) private pure returns (bytes32) {
+        return keccak256(abi.encodePacked(token, briber));
     }
 
-    /**
-     * @dev Verifies an accounts claim to a list of rewards.
-     * This contract does not hold the bribe token balances itself and instead uses
-     * it's own "internal balance" within the Vault.
-     */
     function _processClaims(
         address claimer,
         address recipient,
@@ -255,12 +159,6 @@ contract RewardHandler is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         IERC20Upgradeable[] memory tokens,
         bool asInternalBalance
     ) internal {
-        // TODO: Needs to be associated with a gauge
-        // Can call to bribe manager to get a gauge/bribe reference
-        // and do some verification anywhere needed in this contract.
-
-        // Users will be rewarded by gauge. So needs to be factored in some how here I believe
-
         uint256[] memory amounts = new uint256[](tokens.length);
         Claim memory claim;
 
@@ -301,9 +199,8 @@ contract RewardHandler is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
             );
         }
 
-        IVault.UserBalanceOpKind kind = asInternalBalance
-            ? IVault.UserBalanceOpKind.TRANSFER_INTERNAL
-            : IVault.UserBalanceOpKind.WITHDRAW_INTERNAL;
+        // Bribe manager deposits tokens from bribers into this contract vault internal balance.
+        // Transfer out from this contracts internal vault balance to the recipient.
         IVault.UserBalanceOp[] memory ops = new IVault.UserBalanceOp[](tokens.length);
 
         for (uint256 i = 0; i < tokens.length; i++) {
@@ -312,9 +209,10 @@ contract RewardHandler is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
                 amount: amounts[i],
                 sender: address(this),
                 recipient: payable(recipient),
-                kind: kind
+                kind: IVault.UserBalanceOpKind.WITHDRAW_INTERNAL
             });
         }
+
         getVault().manageUserBalance(ops);
     }
 
@@ -327,12 +225,6 @@ contract RewardHandler is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         uint256 wordIndex,
         uint256 newClaimsBitmap
     ) private {
-        // TODO: Needs to be associated with a gauge
-        // Can call to bribe manager to get a gauge/bribe reference
-        // and do some verification anywhere needed in this contract.
-
-        // Users will be rewarded by gauge. So needs to be factored in some how here I believe
-
         uint256 currentBitmap = _claimedBitmap[channelId][claimer][wordIndex];
 
         // All newly set bits must not have been previously set
@@ -350,6 +242,7 @@ contract RewardHandler is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
             _remainingBalance[channelId] >= balanceBeingClaimed,
             "distributor hasn't provided sufficient tokens for claim"
         );
+
         _remainingBalance[channelId] -= balanceBeingClaimed;
     }
 
@@ -361,6 +254,7 @@ contract RewardHandler is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         bytes32[] memory merkleProof
     ) internal view returns (bool) {
         bytes32 leaf = keccak256(abi.encodePacked(claimer, claimedBalance));
+
         return
             MerkleProofUpgradeable.verify(
                 merkleProof,

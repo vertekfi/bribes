@@ -9,6 +9,7 @@ import "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeab
 import "./interfaces/IGaugeController.sol";
 import "./interfaces/ILiquidityGauge.sol";
 import "./interfaces/IRewardHandler.sol";
+import "./interfaces/IVault.sol";
 
 contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20Upgradeable for IERC20Upgradeable;
@@ -16,20 +17,22 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
-    IGaugeController public gaugeController;
+    IGaugeController private _gaugeController;
 
-    // public rewardHandler;
+    IVault private _vault;
+
+    // Reference to reward handler contract
+    // Used to send bribe amounts to vault internal balance of rewarder contract
+    address private _rewardHandler;
 
     EnumerableSetUpgradeable.AddressSet private _whitelistedTokens;
 
-    // gauge => approved
-    mapping(address => bool) public approvedGauges;
+    EnumerableSetUpgradeable.AddressSet private _approvedGauges;
 
     // gauge => epoch start time => list of bribes for that epoch
     mapping(address => mapping(uint256 => Bribe[])) private _gaugeEpochBribes;
 
-    event BribeAdded(uint256 epoch, address gauge, address token, uint256 amount, address briber);
-    event BribeAmountUpdated(address gauge, address token, uint256 amount);
+    event BribeAdded(uint256 epoch, address gauge, address token, uint256 amount);
     event AddWhitelistToken(address token);
     event RemoveWhitelistToken(address token);
     event GaugeAdded(address gauge);
@@ -48,15 +51,19 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     }
 
     function initialize(
-        address _gaugeController,
+        address gaugeController,
+        address rewardHandler,
+        address vault,
         address[] memory _initialGauges,
         address[] memory _initialTokens
     ) public initializer {
-        require(_gaugeController != address(0), "GaugeController not provided");
+        require(gaugeController != address(0), "GaugeController not provided");
+        require(rewardHandler != address(0), "Reward handler not provided");
+        require(vault != address(0), "Vault not provided");
 
-        gaugeController = IGaugeController(_gaugeController);
-
-        // rewardHandler = IRewardHandler(_rewardHandler);
+        _gaugeController = IGaugeController(gaugeController);
+        _rewardHandler = rewardHandler;
+        _vault = IVault(vault);
 
         // Call all base initializers
         __AccessControl_init();
@@ -101,21 +108,18 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         // Gauge validation
         require(gauge != address(0), "Gauge not provided");
         // This covers _addGauge gauge controller check for gauge existance as well then
-        require(approvedGauges[gauge], "Gauge not permitted");
+        require(isGaugeApproved(gauge), "Gauge not permitted");
         // Skip killed gauges in case the contract state here was not updated to match yet
         require(!ILiquidityGauge(gauge).is_killed(), "Gauge is not active");
 
         // Instead of numerous checks and balances we will force the bribe to be for the start of next epoch
-        // require(bribe.epochStartTime >= nextEpochStart, "Start time too soon");
-        // require(bribe.epochStartTime < nextEpochStart + 1 weeks, "Start time past next epoch");
-
-        uint256 nextEpochStart = gaugeController.time_total();
+        uint256 nextEpochStart = _gaugeController.time_total();
 
         // In the event the bribe is added in some small window where the controller has not been
         // checkpointed to the start of the next week
         if (block.timestamp > nextEpochStart) {
-            gaugeController.checkpoint();
-            nextEpochStart = gaugeController.time_total();
+            _gaugeController.checkpoint();
+            nextEpochStart = _gaugeController.time_total();
         }
 
         // Single propery writes can save gas
@@ -129,50 +133,56 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
 
         _gaugeEpochBribes[gauge][nextEpochStart].push(bribe);
 
-        // We know the token is valid at this point
-        // Could send directly to rewarder contract but going in steps for now
+        // Transfering here to avoid user needing to approve vault as well.
+        // Would be required if we attempted to deposit straight to internal balance from them.
         IERC20Upgradeable(token).safeTransferFrom(_msgSender(), address(this), amount);
 
-        emit BribeAdded(nextEpochStart, gauge, token, amount, _msgSender());
+        // Transfer out to vault internal balance for reward handler
+        _updateRewardHandlerInternalBalance(token, amount);
+
+        emit BribeAdded(nextEpochStart, gauge, token, amount);
     }
 
-    function increaseBribeAmount(
-        address gauge,
-        uint256 epoch,
-        uint256 index,
-        uint256 amount
-    ) external nonReentrant {
-        require(amount != 0, "Zero increase amount");
+    function _updateRewardHandlerInternalBalance(address token, uint256 amount) private {
+        IVault.UserBalanceOp[] memory ops = new IVault.UserBalanceOp[](1);
 
-        // getBribe runs checks to make sure bribe exists
-        Bribe memory bribe = getBribe(gauge, epoch, index);
+        ops[0] = IVault.UserBalanceOp({
+            asset: token,
+            amount: amount,
+            sender: address(this),
+            recipient: payable(_rewardHandler),
+            kind: IVault.UserBalanceOpKind.DEPOSIT_INTERNAL
+        });
 
-        // Caller needs to be the briber for the bribe
-        require(_msgSender() == bribe.briber, "Caller can not update bribe");
-        // The bribe epoch end needs to not have passed
-        require(block.timestamp < bribe.epochStartTime + 1 weeks, "Bribe epoch has ended");
-
-        // Increase amount. Write straight to storage instance once checks have passed
-        // Memory instance used for initial checks
-        // (good? worth it? Maybe just let them run the gas if someone is trying some funny shit)
-        _gaugeEpochBribes[gauge][epoch][index].amount += amount;
-
-        // Transfer from caller after checks and state updates
-        IERC20Upgradeable(bribe.token).safeTransferFrom(_msgSender(), address(this), amount);
-
-        emit BribeAmountUpdated(gauge, bribe.token, amount);
+        getVault().manageUserBalance(ops);
     }
 
     // ====================================== VIEW ===================================== //
+
+    function getVault() public view returns (IVault) {
+        return _vault;
+    }
+
+    function getRewardHandler() public view returns (address) {
+        return _rewardHandler;
+    }
 
     /// @dev Checks whether a token has been added to the token whitelist
     function isWhitelistedToken(address token) public view returns (bool) {
         return _whitelistedTokens.contains(token);
     }
 
+    function isGaugeApproved(address gauge) public view returns (bool) {
+        return _approvedGauges.contains(gauge);
+    }
+
     /// @dev Gets the list of bribes for a gauge for a given epoch
     function getGaugeBribes(address gauge, uint256 epoch) external view returns (Bribe[] memory) {
         return _gaugeEpochBribes[gauge][epoch];
+    }
+
+    function getGaugeController() external view returns (IGaugeController) {
+        return _gaugeController;
     }
 
     /// @dev Gets a single bribe record for a gauge by index for a given epoch
@@ -190,34 +200,11 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         Bribe[] memory bribes = _gaugeEpochBribes[gauge][epoch];
 
         // TODO: Test various edge cases
-        require(index < bribes.length, "Invalid index");
         require(bribes.length > 0, "No bribes for epoch");
+        require(index < bribes.length, "Invalid index");
 
         return bribes[index];
     }
-
-    // TODO: We probably want to support scheduling bribes for beyond next epoch
-    // (up to some very short limit, eg. a couple weeks)
-    // We could mark only specific gauges as capabale of this, etc.
-    // function addFutureEpochBribe() external nonReentrant {
-
-    // }
-
-    // /**
-    //  * @dev Rounds the provided timestamp down to the beginning of the previous week (Thurs 00:00 UTC)
-    //  */
-    // function _roundDownTimestamp(uint256 timestamp) private pure returns (uint256) {
-    //   // Division by zero or overflows are impossible here.
-    //   return (timestamp / 1 weeks) * 1 weeks;
-    // }
-
-    // /**
-    //  * @dev Rounds the provided timestamp up to the beginning of the next week (Thurs 00:00 UTC)
-    //  */
-    // function _roundUpTimestamp(uint256 timestamp) private pure returns (uint256) {
-    //   // Overflows are impossible here for all realistic inputs.
-    //   return _roundDownTimestamp(timestamp + 1 weeks - 1);
-    // }
 
     // ====================================== ADMIN ===================================== //
 
@@ -238,6 +225,8 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
 
         // Skipping any additional checks for gas. Duplicates just get skipped
         _whitelistedTokens.add(token);
+        // Approve once now to save gas later for each bribe created
+        IERC20Upgradeable(token).approve(address(_vault), type(uint256).max);
 
         emit AddWhitelistToken(token);
     }
@@ -252,11 +241,11 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     /// @dev Adds a gauge that is able to receive bribes
     function _addGauge(address gauge) internal {
         require(gauge != address(0), "Gauge not provided");
-        require(!approvedGauges[gauge], "Gauge already added");
-        require(gaugeController.gauge_exists(gauge), "Gauge does not exist on Controller");
+        require(!isGaugeApproved(gauge), "Gauge already added");
+        require(_gaugeController.gauge_exists(gauge), "Gauge does not exist on Controller");
         require(!ILiquidityGauge(gauge).is_killed(), "Gauge is not active");
 
-        approvedGauges[gauge] = true;
+        _approvedGauges.add(gauge);
         emit GaugeAdded(gauge);
     }
 
@@ -267,25 +256,26 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     /// @dev Removes a gauge from the list that is able to receive bribes
     function removeGauge(address gauge) external onlyRole(ADMIN_ROLE) {
         require(gauge != address(0), "Gauge not provided");
-        require(approvedGauges[gauge], "Gauge not added");
+        require(isGaugeApproved(gauge), "Gauge not added");
 
-        approvedGauges[gauge] = false;
+        _approvedGauges.remove(gauge);
         emit GaugeRemoved(gauge);
     }
 
     /// @dev Sets a new address for the GaugeController contract
-    function setGaugeController(address _gaugeController) external onlyRole(ADMIN_ROLE) {
-        require(_gaugeController != address(0), "GaugeController not provided");
+    function setGaugeController(address gaugeController) external onlyRole(ADMIN_ROLE) {
+        require(gaugeController != address(0), "GaugeController not provided");
 
-        gaugeController = IGaugeController(_gaugeController);
-        emit GaugeControllerSet(_gaugeController);
+        _gaugeController = IGaugeController(gaugeController);
+        emit GaugeControllerSet(gaugeController);
     }
 
-    // /// @dev Sets a new address for the RewardHandler contract
-    // function setRewardHandler(address handler) external onlyRole(ADMIN_ROLE) {
-    //   require(handler != address(0), "RewardHandler not provided");
+    /// @dev Sets a new address for the RewardHandler contract
+    function setRewardHandler(address handler) external onlyRole(ADMIN_ROLE) {
+        require(handler != address(0), "RewardHandler not provided");
 
-    //   rewardHandler = IRewardHandler(handler);
-    //   emit RewardHandlerSet(handler);
-    // }
+        _rewardHandler = handler;
+
+        emit RewardHandlerSet(handler);
+    }
 }

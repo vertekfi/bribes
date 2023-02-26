@@ -30,7 +30,7 @@ describe('BribeManager', () => {
       const { bribeManager } = await loadFixture(bribeFixture);
 
       for (const gauge of GAUGES) {
-        expect(await bribeManager.approvedGauges(gauge)).to.be.true;
+        expect(await bribeManager.isGaugeApproved(gauge)).to.be.true;
       }
     });
   });
