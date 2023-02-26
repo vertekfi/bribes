@@ -8,6 +8,7 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeab
 
 import "./interfaces/IRewardHandler.sol";
 import "./interfaces/IVault.sol";
+import "./interfaces/IBribeManager.sol";
 
 contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, IRewardHandler {
     using SafeERC20Upgradeable for IERC20Upgradeable;
@@ -25,7 +26,7 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
 
     IVault private _vault;
 
-    address private _bribeManager;
+    IBribeManager private _bribeManager;
 
     // Recorded distributions
     // channelId > distributionId
@@ -78,7 +79,7 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
         require(bribeManager != address(0), "BribeManager not provided");
 
         _vault = IVault(vault);
-        _bribeManager = bribeManager;
+        _bribeManager = IBribeManager(bribeManager);
 
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _grantRole(DISTRIBUTOR_ROLE, _msgSender());
@@ -162,16 +163,31 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
     // ==================================== ONLY DISTRIBUTOR ================================== //
 
     /**
-     * @notice Allows a distributor role to add funds to the contract as a merkle tree.
+     * @notice Allows a distributor role to add a distribution merkle tree.
+     * The bribe to user rewarad flow consist of bribes => user votes => off chain vote verification.
+     * So additional arguments are added as a requirement to attempt to
+     * help verify/va;idate the distribution against a bribe record.
      */
     function createDistribution(
         IERC20Upgradeable token,
+        address gauge,
+        uint256 epoch,
+        uint256 bribeRecordIndex,
         uint256 amount,
         address briber,
         uint256 distributionId,
         bytes32 merkleRoot
     ) external onlyRole(DISTRIBUTOR_ROLE) nonReentrant {
-        require(briber != address(0), "Briber not provided");
+        // Will check and revert for basic incorrect values
+        Bribe memory bribe = _bribeManager.getBribe(gauge, epoch, bribeRecordIndex);
+
+        require(
+            bribe.token == address(token) &&
+                bribe.gauge == gauge &&
+                bribe.briber == briber &&
+                bribe.amount == amount,
+            "Invalid bribe record"
+        );
 
         bytes32 channelId = _getChannelId(token, briber);
         require(
@@ -194,7 +210,8 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
 
         // getVault().manageUserBalance(ops);
 
-        _remainingBalance[channelId] += amount;
+        // This is updated by the bribe manager through `addDistribution`
+        // _remainingBalance[channelId] += amount;
         _distributionRoot[channelId][distributionId] = merkleRoot;
         _nextDistributionId[channelId] = distributionId + 1;
 
@@ -214,14 +231,16 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
         bytes32 channelId = _getChannelId(token, briber);
         _remainingBalance[channelId] += amount;
 
+        // Deposit amount from manager to this contracts vault internal balance
+        // This is to keep things a bit more loosely coupled in the event of, anything
+        // TODO: Given above line. Approve treasury to access internal balance for tokens if needed?
         token.approve(address(getVault()), amount);
-
         IVault.UserBalanceOp[] memory ops = new IVault.UserBalanceOp[](1);
 
         ops[0] = IVault.UserBalanceOp({
             asset: address(token),
             amount: amount,
-            sender: _bribeManager, // manager approves this contract for whitelisted tokens
+            sender: address(_bribeManager), // manager approves this contract for whitelisted tokens
             recipient: payable(address(this)),
             kind: IVault.UserBalanceOpKind.DEPOSIT_INTERNAL
         });
@@ -359,6 +378,6 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
     function setBribeManager(address manager) external onlyRole(OPERATOR_ROLE) {
         require(manager != address(0), "Manager not provided");
 
-        _bribeManager = manager;
+        _bribeManager = IBribeManager(manager);
     }
 }
