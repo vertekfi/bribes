@@ -92,6 +92,10 @@ describe('BribeManager', () => {
       expect(gaugeBribes.length).to.equal(1);
     });
 
+    it('updates reward handler internal balance', async () => {
+      // TODO: Kind of important
+    });
+
     describe('Setting New Bribe Fields', () => {
       it('adds correctly sets all bribe fields', async () => {
         const { bribeManager, gaugeController, adminAccount } = await loadFixture(bribeFixture);

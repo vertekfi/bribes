@@ -200,6 +200,7 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         }
 
         // Bribe manager deposits tokens from bribers into this contract vault internal balance.
+        // This adds a bit of abstraction but removes the need for a two way link between both contracts.
         // Transfer out from this contracts internal vault balance to the recipient.
         IVault.UserBalanceOp[] memory ops = new IVault.UserBalanceOp[](tokens.length);
 

@@ -137,7 +137,8 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         // Would be required if we attempted to deposit straight to internal balance from them.
         IERC20Upgradeable(token).safeTransferFrom(_msgSender(), address(this), amount);
 
-        // Transfer out to vault internal balance for reward handler
+        // Transfer out to reward handlers vault internal balance
+        // TODO: unit test
         _updateRewardHandlerInternalBalance(token, amount);
 
         emit BribeAdded(nextEpochStart, gauge, token, amount);
@@ -253,7 +254,9 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         _addGauge(gauge);
     }
 
-    /// @dev Removes a gauge from the list that is able to receive bribes
+    /// @dev Removes a gauge from the list that is able to receive new bribes.
+    // TODO: Need to test/check for any potential issues around this.
+    // Any active bribes will not be effected. Will just disable any new bribes from being added.
     function removeGauge(address gauge) external onlyRole(ADMIN_ROLE) {
         require(gauge != address(0), "Gauge not provided");
         require(isGaugeApproved(gauge), "Gauge not added");
