@@ -23,7 +23,7 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
 
     // Reference to reward handler contract
     // Used to send bribe amounts to vault internal balance of rewarder contract
-    address private _rewardHandler;
+    IRewardHandler private _rewardHandler;
 
     EnumerableSetUpgradeable.AddressSet private _whitelistedTokens;
 
@@ -62,7 +62,7 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         require(vault != address(0), "Vault not provided");
 
         _gaugeController = IGaugeController(gaugeController);
-        _rewardHandler = rewardHandler;
+        _rewardHandler = IRewardHandler(rewardHandler);
         _vault = IVault(vault);
 
         // Call all base initializers
@@ -137,25 +137,11 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         // Would be required if we attempted to deposit straight to internal balance from them.
         IERC20Upgradeable(token).safeTransferFrom(_msgSender(), address(this), amount);
 
-        // Transfer out to reward handlers vault internal balance
-        // TODO: unit test
-        _updateRewardHandlerInternalBalance(token, amount);
+        // Results in two transfers (user => here for rewarder, rewarder => vault)
+        // But makes tracking the flow easier
+        _rewardHandler.addDistribution(IERC20Upgradeable(token), _msgSender(), amount);
 
         emit BribeAdded(nextEpochStart, gauge, token, amount);
-    }
-
-    function _updateRewardHandlerInternalBalance(address token, uint256 amount) private {
-        IVault.UserBalanceOp[] memory ops = new IVault.UserBalanceOp[](1);
-
-        ops[0] = IVault.UserBalanceOp({
-            asset: token,
-            amount: amount,
-            sender: address(this),
-            recipient: payable(_rewardHandler),
-            kind: IVault.UserBalanceOpKind.DEPOSIT_INTERNAL
-        });
-
-        getVault().manageUserBalance(ops);
     }
 
     // ====================================== VIEW ===================================== //
@@ -164,7 +150,7 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         return _vault;
     }
 
-    function getRewardHandler() public view returns (address) {
+    function getRewardHandler() public view returns (IRewardHandler) {
         return _rewardHandler;
     }
 
@@ -227,7 +213,8 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         // Skipping any additional checks for gas. Duplicates just get skipped
         _whitelistedTokens.add(token);
         // Approve once now to save gas later for each bribe created
-        IERC20Upgradeable(token).approve(address(_vault), type(uint256).max);
+        // Reward handler will pull from this contract to its own vault internal balance
+        IERC20Upgradeable(token).approve(address(_rewardHandler), type(uint256).max);
 
         emit AddWhitelistToken(token);
     }
@@ -273,11 +260,12 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         emit GaugeControllerSet(gaugeController);
     }
 
-    /// @dev Sets a new address for the RewardHandler contract
+    /// @dev Sets a new address for the RewardHandler contract.
+    // Would require token approval/disapproval being set again.
     function setRewardHandler(address handler) external onlyRole(ADMIN_ROLE) {
         require(handler != address(0), "RewardHandler not provided");
 
-        _rewardHandler = handler;
+        _rewardHandler = IRewardHandler(handler);
 
         emit RewardHandlerSet(handler);
     }

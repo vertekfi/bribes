@@ -9,7 +9,7 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeab
 import "./interfaces/IRewardHandler.sol";
 import "./interfaces/IVault.sol";
 
-contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
+contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, IRewardHandler {
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
     struct Claim {
@@ -21,8 +21,11 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     }
 
     bytes32 public constant DISTRIBUTOR_ROLE = keccak256("DISTRIBUTOR_ROLE");
+    bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
     IVault private _vault;
+
+    address private _bribeManager;
 
     // Recorded distributions
     // channelId > distributionId
@@ -38,6 +41,11 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     // Remaining balance for a token for/from a briber
     // The "channel" is created/enabled through the combination of their account address and the token address
     mapping(bytes32 => uint256) private _remainingBalance;
+
+    modifier onlyManager() {
+        require(_msgSender() == _bribeManager, "Not the manager");
+        _;
+    }
 
     event DistributionAdded(
         address indexed briber,
@@ -65,17 +73,24 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         _disableInitializers();
     }
 
-    function initialize(address vault) public initializer {
+    function initialize(address vault, address bribeManager) public initializer {
         require(vault != address(0), "Vault not provided");
+        require(bribeManager != address(0), "BribeManager not provided");
 
         _vault = IVault(vault);
+        _bribeManager = bribeManager;
 
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _grantRole(DISTRIBUTOR_ROLE, _msgSender());
+        _grantRole(OPERATOR_ROLE, _msgSender());
     }
 
     function getVault() public view returns (IVault) {
         return _vault;
+    }
+
+    function getBribeManager() public view returns (address) {
+        return _bribeManager;
     }
 
     function getDistributionRoot(
@@ -133,8 +148,6 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         return _verifyClaim(channelId, distributionId, claimer, claimedBalance, merkleProof);
     }
 
-    // Claim functions
-
     /**
      * @notice Allows anyone to claim multiple distributions for a claimer.
      */
@@ -146,7 +159,77 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         _processClaims(claimer, claimer, claims, tokens, false);
     }
 
-    // Helper functions
+    // ==================================== ONLY DISTRIBUTOR ================================== //
+
+    /**
+     * @notice Allows a distributor role to add funds to the contract as a merkle tree.
+     */
+    function createDistribution(
+        IERC20Upgradeable token,
+        uint256 amount,
+        address briber,
+        uint256 distributionId,
+        bytes32 merkleRoot
+    ) external onlyRole(DISTRIBUTOR_ROLE) nonReentrant {
+        require(briber != address(0), "Briber not provided");
+
+        bytes32 channelId = _getChannelId(token, briber);
+        require(
+            _nextDistributionId[channelId] == distributionId || _nextDistributionId[channelId] == 0,
+            "invalid distribution ID"
+        );
+        require(_remainingBalance[channelId] >= amount, "Insufficient internal balance for amount");
+
+        // token.safeTransferFrom(briber, address(this), amount);
+        // token.approve(address(getVault()), amount);
+        // IVault.UserBalanceOp[] memory ops = new IVault.UserBalanceOp[](1);
+
+        // ops[0] = IVault.UserBalanceOp({
+        //     asset: IAsset(address(token)),
+        //     amount: amount,
+        //     sender: address(this),
+        //     recipient: payable(address(this)),
+        //     kind: IVault.UserBalanceOpKind.DEPOSIT_INTERNAL
+        // });
+
+        // getVault().manageUserBalance(ops);
+
+        _remainingBalance[channelId] += amount;
+        _distributionRoot[channelId][distributionId] = merkleRoot;
+        _nextDistributionId[channelId] = distributionId + 1;
+
+        emit DistributionAdded(briber, token, distributionId, merkleRoot, amount);
+    }
+
+    // ==================================== ONLY MANAGER ================================== //
+
+    function addDistribution(
+        IERC20Upgradeable token,
+        address briber,
+        uint256 amount
+    ) external onlyManager {
+        // Manager already handles check on inputs
+
+        // Increase balance for channel
+        bytes32 channelId = _getChannelId(token, briber);
+        _remainingBalance[channelId] += amount;
+
+        token.approve(address(getVault()), amount);
+
+        IVault.UserBalanceOp[] memory ops = new IVault.UserBalanceOp[](1);
+
+        ops[0] = IVault.UserBalanceOp({
+            asset: address(token),
+            amount: amount,
+            sender: _bribeManager, // manager approves this contract for whitelisted tokens
+            recipient: payable(address(this)),
+            kind: IVault.UserBalanceOpKind.DEPOSIT_INTERNAL
+        });
+
+        getVault().manageUserBalance(ops);
+    }
+
+    // ==================================== HELPER FUNCTIONS ================================== //
 
     function _getChannelId(IERC20Upgradeable token, address briber) private pure returns (bytes32) {
         return keccak256(abi.encodePacked(token, briber));
@@ -269,5 +352,13 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     ) private pure returns (uint256 distributionWordIndex, uint256 distributionBitIndex) {
         distributionWordIndex = distributionId / 256;
         distributionBitIndex = distributionId % 256;
+    }
+
+    // ==================================== ONLY OPERATOR ================================== //
+
+    function setBribeManager(address manager) external onlyRole(OPERATOR_ROLE) {
+        require(manager != address(0), "Manager not provided");
+
+        _bribeManager = manager;
     }
 }
