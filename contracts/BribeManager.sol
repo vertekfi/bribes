@@ -231,8 +231,15 @@ contract BribeManager is AccessControlUpgradeable, PausableUpgradeable, Reentran
         emit GaugeAdded(gauge);
     }
 
-    function addGauge(address gauge) external onlyRole(ADMIN_ROLE) {
-        _addGauge(gauge);
+    function addGauges(address[] calldata gauges) external onlyRole(ADMIN_ROLE) {
+        uint256 gaugeCount = gauges.length;
+        for (uint i = 0; i < gaugeCount; ) {
+            _addGauge(gauges[i]);
+
+            unchecked {
+                i++;
+            }
+        }
     }
 
     /// @dev Removes a gauge from the list that is able to receive new bribes.
