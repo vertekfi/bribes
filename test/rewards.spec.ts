@@ -3,13 +3,11 @@ import { expect } from 'chai';
 import { BigNumber } from 'ethers';
 import { parseEther } from 'ethers/lib/utils';
 import { ethers } from 'hardhat';
-import { addBribe } from './bribe.utils';
+import { addBribe, bribeAmount } from './bribe.utils';
 import { ZERO_ADDRESS, ZERO_BYTES_32 } from './constants';
-import { GAUGES, MERKLE_ROOT, TOKENS, USER_DATA } from './data';
+import { BUSD, GAUGES, MERKLE_ROOT, TOKENS, USER_DATA, WBNB } from './data';
 import { bribeFixture } from './fixtures/bribe.fixture';
 import { getAccessControlRevertString, getERC20, getRandomBytes32 } from './utils';
-
-const bribeAmount = parseEther('100');
 
 async function doBribeAndDistribution(root?: string) {
   const { rewardHandler, adminAccount } = await loadFixture(bribeFixture);
@@ -20,6 +18,7 @@ async function doBribeAndDistribution(root?: string) {
   const token = TOKENS[0];
   const gauge = GAUGES[0];
   const distributionId = 0;
+  const bribeRecordIndex = 0;
   const merkleRoot = root || getRandomBytes32();
 
   await expect(
@@ -27,7 +26,7 @@ async function doBribeAndDistribution(root?: string) {
       token,
       gauge,
       epochTime,
-      0,
+      bribeRecordIndex,
       bribeAmount,
       adminAccount.address,
       distributionId,
@@ -101,10 +100,12 @@ describe('Merkle Rewards', () => {
       it('reverts when the bribe record values do not match input parameters', async () => {
         const { rewardHandler, adminAccount } = await loadFixture(bribeFixture);
         const { epochTime } = await addBribe();
+
         // addBribe uses index zero by default
         const token = TOKENS[0];
         const gauge = GAUGES[0];
         const distributionId = 0;
+
         await expect(
           rewardHandler.createDistribution(
             token,
@@ -143,133 +144,144 @@ describe('Merkle Rewards', () => {
     });
   });
 
-  describe('Claiming Rewards', () => {
-    describe('Verifying claim state', () => {
-      it('returns true to if claim is valid', async () => {
-        // TODO: How to manage this for UI?
-        // Need to get the distribution id during submission?
-        // Can call from fe/be for next distribution id and minus 1
-        // What if same briber adds bribes?
-        // Might be an issue here with how the state is held then
-        //
-        // **Contract does account for this in some way already
-        // Multiple distributions are consolidated by token at claim time then
-        // "Note that balances to claim are here accumulated *per token*, independent of the distribution channel and
-        // claims set accounting."
-
-        // We know the user is apart of the tree
-        const testClaimer = USER_DATA[1];
-        // Submitting with real generated root that contains the test user leaf
-        const { distributionId, adminAccount, token, rewardHandler } = await doBribeAndDistribution(
-          MERKLE_ROOT
-        );
-        const briber = adminAccount.address;
-        const userClaimAmount = testClaimer.values.value[1];
-        const claimer = testClaimer.user;
-        const merkleProof = testClaimer.values.proof;
-        const isValidClaim = await rewardHandler.verifyClaim(
-          token,
-          briber,
-          distributionId,
-          claimer,
-          userClaimAmount,
-          merkleProof
-        );
-        expect(isValidClaim).to.be.true;
-      });
-      it('returns false to if claim is invalid', async () => {
-        const testClaimer = USER_DATA[1];
-        const { distributionId, adminAccount, token, rewardHandler } = await doBribeAndDistribution(
-          MERKLE_ROOT
-        );
-        const briber = adminAccount.address;
-        let userClaimAmount = '1000000'; // provide an incorrect amount
-        let claimer = testClaimer.user;
-        const merkleProof = testClaimer.values.proof;
-        let isValidClaim = await rewardHandler.verifyClaim(
-          token,
-          briber,
-          distributionId,
-          claimer,
-          userClaimAmount,
-          merkleProof
-        );
-        expect(isValidClaim).to.be.false;
-        // Provide invalid user address. Account is not part of the generated tree
-        claimer = adminAccount.address;
-        userClaimAmount = testClaimer.values.value[1];
-        isValidClaim = await rewardHandler.verifyClaim(
-          token,
-          briber,
-          distributionId,
-          claimer,
-          userClaimAmount,
-          merkleProof
-        );
-        expect(isValidClaim).to.be.false;
-      });
-      it('returns false if the user has not claimed the distribution', async () => {
-        const testClaimer = USER_DATA[1];
-        // Submitting with real generated root that contains the test user leaf
-        const { distributionId, adminAccount, token, rewardHandler } = await doBribeAndDistribution(
-          MERKLE_ROOT
-        );
-        const briber = adminAccount.address;
-        const claimer = testClaimer.user;
-        const isClaimed = await rewardHandler.isClaimed(token, briber, distributionId, claimer);
-        // User is valid but has not claimed distribution
-        expect(isClaimed).to.be.false;
-      });
+  describe('Verifying claim state', () => {
+    it('returns true to if claim is valid', async () => {
+      // We know the user is apart of the tree
+      const testClaimer = USER_DATA[1];
+      // Submitting with real generated root that contains the test user leaf
+      const { distributionId, adminAccount, token, rewardHandler } = await doBribeAndDistribution(
+        MERKLE_ROOT
+      );
+      const briber = adminAccount.address;
+      const userClaimAmount = testClaimer.values.value[1];
+      const claimer = testClaimer.user;
+      const merkleProof = testClaimer.values.proof;
+      const isValidClaim = await rewardHandler.verifyClaim(
+        token,
+        briber,
+        distributionId,
+        claimer,
+        userClaimAmount,
+        merkleProof
+      );
+      expect(isValidClaim).to.be.true;
     });
 
+    it('returns false to if claim is invalid', async () => {
+      const testClaimer = USER_DATA[1];
+      const { distributionId, adminAccount, token, rewardHandler } = await doBribeAndDistribution(
+        MERKLE_ROOT
+      );
+      const briber = adminAccount.address;
+      let userClaimAmount = '1000000'; // provide an incorrect amount
+      let claimer = testClaimer.user;
+      const merkleProof = testClaimer.values.proof;
+      let isValidClaim = await rewardHandler.verifyClaim(
+        token,
+        briber,
+        distributionId,
+        claimer,
+        userClaimAmount,
+        merkleProof
+      );
+      expect(isValidClaim).to.be.false;
+      // Provide invalid user address. Account is not part of the generated tree
+      claimer = adminAccount.address;
+      userClaimAmount = testClaimer.values.value[1];
+      isValidClaim = await rewardHandler.verifyClaim(
+        token,
+        briber,
+        distributionId,
+        claimer,
+        userClaimAmount,
+        merkleProof
+      );
+      expect(isValidClaim).to.be.false;
+    });
+
+    it('returns false if the user has not claimed the distribution', async () => {
+      const testClaimer = USER_DATA[1];
+      // Submitting with real generated root that contains the test user leaf
+      const { distributionId, adminAccount, token, rewardHandler } = await doBribeAndDistribution(
+        MERKLE_ROOT
+      );
+      const briber = adminAccount.address;
+      const claimer = testClaimer.user;
+      const isClaimed = await rewardHandler.isClaimed(token, briber, distributionId, claimer);
+      // User is valid but has not claimed distribution
+      expect(isClaimed).to.be.false;
+    });
+  });
+
+  describe('Claiming Rewards', () => {
+    async function doValidClaim() {
+      const { rewardHandler, distributionId, adminAccount, token } = await doBribeAndDistribution(
+        MERKLE_ROOT
+      );
+      const testClaimer = USER_DATA[1];
+      const balance = testClaimer.values.value[1]; // amount being claimed
+      const distributor = adminAccount.address;
+      const tokenIndex = 0;
+      const merkleProof = testClaimer.values.proof;
+      const claimer = testClaimer.user;
+      const tokensToClaim = [token];
+
+      // Verify the user received their tokens
+      const tokenInstance = getERC20(token, adminAccount);
+      const userBalanceBefore: BigNumber = await tokenInstance.balanceOf(claimer);
+
+      await rewardHandler.claimDistributions(
+        claimer,
+        [[distributionId, balance, distributor, tokenIndex, merkleProof]],
+        tokensToClaim
+      );
+
+      const userBalanceAfter: BigNumber = await tokenInstance.balanceOf(claimer);
+
+      expect(userBalanceAfter.sub(userBalanceBefore)).to.equal(balance);
+
+      const isClaimed = await rewardHandler.isClaimed(token, distributor, distributionId, claimer);
+
+      expect(isClaimed).to.be.true;
+
+      return {
+        claimer,
+        claims: [[distributionId, balance, distributor, tokenIndex, merkleProof]],
+        tokensToClaim,
+        rewardHandler,
+      };
+    }
+
     describe('When claim state is valid', () => {
-      async function doValidClaim() {
-        const { rewardHandler, distributionId, adminAccount, token } = await doBribeAndDistribution(
-          MERKLE_ROOT
-        );
-        const testClaimer = USER_DATA[1];
-        const balance = testClaimer.values.value[1]; // amount being claimed
-        const distributor = adminAccount.address;
-        const tokenIndex = 0;
-        const merkleProof = testClaimer.values.proof;
-        const claimer = testClaimer.user;
-        const tokensToClaim = [token];
-
-        // Verify the user received their tokens
-        const tokenInstance = getERC20(token, adminAccount);
-        const userBalanceBefore: BigNumber = await tokenInstance.balanceOf(claimer);
-
-        await rewardHandler.claimDistributions(
-          claimer,
-          [[distributionId, balance, distributor, tokenIndex, merkleProof]],
-          tokensToClaim
-        );
-
-        const userBalanceAfter: BigNumber = await tokenInstance.balanceOf(claimer);
-
-        expect(userBalanceAfter.sub(userBalanceBefore)).to.equal(balance);
-
-        const isClaimed = await rewardHandler.isClaimed(
-          token,
-          distributor,
-          distributionId,
-          claimer
-        );
-
-        expect(isClaimed).to.be.true;
-
-        return {
-          claimer,
-          claims: [[distributionId, balance, distributor, tokenIndex, merkleProof]],
-          tokensToClaim,
-          rewardHandler,
-        };
-      }
-
       it('claims a distribution for a user', async () => {
         await doValidClaim();
       });
 
+      // it('claims multiple distributions for a user', async () => {
+      //   const { rewardHandler, adminAccount } = await loadFixture(bribeFixture);
+      //   const testClaimer = USER_DATA[1];
+
+      //   // Test claiming with multiple tokens/distributions, etc.
+      //   const tokenOne = BUSD;
+      //   const bribeOne = await addBribe(tokenOne);
+
+      //   const tokenTwo = WBNB;
+      //   const bribeTwo = await addBribe();
+
+      //   // await rewardHandler.createDistribution(
+      //   //   token,
+      //   //   gauge,
+      //   //   epochTime,
+      //   //   bribeRecordIndex,
+      //   //   bribeAmount,
+      //   //   adminAccount.address,
+      //   //   distributionId,
+      //   //   merkleRoot
+      //   // )
+      // });
+    });
+
+    describe('When claim state is not valid', () => {
       it('does not allow claiming a distribution again', async () => {
         const { claimer, claims, tokensToClaim, rewardHandler } = await doValidClaim();
 
@@ -277,13 +289,6 @@ describe('Merkle Rewards', () => {
           rewardHandler.claimDistributions(claimer, claims, tokensToClaim)
         ).to.be.revertedWith('cannot claim twice');
       });
-
-      // it('claims multiple distributions for a user', async () => {
-      //   const { distributionId, adminAccount, token } = await doBribeAndDistribution(MERKLE_ROOT);
-      //   const testClaimer = USER_DATA[1];
-
-      //   // Test claiming with multiple tokens/distributions, etc.
-      // });
     });
   });
 });
