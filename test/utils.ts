@@ -20,6 +20,8 @@ export const WBNB_BALANCEOF_SLOT = 3;
 export const GAUGE_BALANCEOF_SLOT = 5;
 export const BAL_POOL_BALANCEOFSLOT = 0; // WeightedPool instance slot
 
+export const keccak256 = ethers.utils.solidityKeccak256;
+
 export const bribeAmount = parseEther('100');
 
 export async function addBribe(

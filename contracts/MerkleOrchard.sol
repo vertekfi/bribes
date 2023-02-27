@@ -85,6 +85,8 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
         _grantRole(OPERATOR_ROLE, _msgSender());
     }
 
+    // ==================================== VIEW ================================== //
+
     function getBribeManager() public view returns (IBribeManager) {
         return _bribeManager;
     }
@@ -144,8 +146,10 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
         return _verifyClaim(channelId, distributionId, claimer, claimedBalance, merkleProof);
     }
 
+    // ==================================== CLAIM ================================== //
+
     /**
-     * @notice Allows anyone to claim multiple distributions for a claimer.
+     * @dev Allows anyone to claim multiple distributions for a claimer.
      */
     function claimDistributions(
         address claimer,
@@ -158,7 +162,7 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
     // ==================================== ONLY DISTRIBUTOR ================================== //
 
     /**
-     * @notice Allows a distributor role to add a distribution merkle tree.
+     * @dev Allows a distributor role to add a distribution merkle tree.
      * The bribe to user rewarad flow consist of bribes => user votes => off chain vote verification.
      * So additional arguments are added as a requirement to attempt to
      * help verify/validate the distribution against a bribe record.
@@ -329,7 +333,7 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
         uint256 claimedBalance,
         bytes32[] memory merkleProof
     ) internal view returns (bool) {
-        bytes32 leaf = keccak256(abi.encodePacked(claimer, claimedBalance));
+        bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(claimer, claimedBalance))));
 
         return
             MerkleProofUpgradeable.verify(
