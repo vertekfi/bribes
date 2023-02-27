@@ -3,6 +3,7 @@ pragma solidity 0.8.12;
 
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeable.sol";
 
@@ -10,7 +11,7 @@ import "./interfaces/IGaugeController.sol";
 import "./interfaces/ILiquidityGauge.sol";
 import "./interfaces/IRewardHandler.sol";
 
-contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
+contract BribeManager is AccessControlUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20Upgradeable for IERC20Upgradeable;
     using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
 
@@ -60,6 +61,7 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
 
         // Call all base initializers
         __AccessControl_init();
+        __Pausable_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _grantRole(ADMIN_ROLE, _msgSender());
@@ -92,10 +94,14 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
      * @param amount Amount of `token` offered for the bribe
      * @param gauge Address of the gauge the bribe is being offered to
      */
-    function addBribe(address token, uint256 amount, address gauge) external nonReentrant {
+    function addBribe(
+        address token,
+        uint256 amount,
+        address gauge
+    ) external nonReentrant whenNotPaused {
         // TODO: unit test edge cases
         require(token != address(0), "Token not provided");
-        require(_whitelistedTokens.contains(token), "Token not permitted");
+        require(isWhitelistedToken(token), "Token not permitted");
         require(amount > 0, "Zero bribe amount");
 
         // Gauge validation
@@ -129,6 +135,7 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         // Results in two transfers (user => here, here => rewarder)
         // But currently makes tracking the flow a bit clearer
         IERC20Upgradeable(token).safeTransferFrom(_msgSender(), address(this), amount);
+        // TODO: Could add a "notifyDistribution" sort of function instead of adding the additional transfer
         _rewardHandler.managerAddDistribution(IERC20Upgradeable(token), _msgSender(), amount);
 
         emit BribeAdded(nextEpochStart, gauge, token, amount);
@@ -255,5 +262,13 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         _rewardHandler = IRewardHandler(handler);
 
         emit RewardHandlerSet(handler);
+    }
+
+    function pause() external onlyRole(ADMIN_ROLE) {
+        _pause();
+    }
+
+    function unpause() external onlyRole(ADMIN_ROLE) {
+        _unpause();
     }
 }

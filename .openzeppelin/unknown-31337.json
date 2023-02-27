@@ -2,7 +2,7 @@
   "manifestVersion": "3.2",
   "admin": {
     "address": "0x6E1644313086Cf6e90c15FD73B9DF445d385583e",
-    "txHash": "0x2333fd84e0f2ca5273a2f899cad7942ccfbb8a0aa2ba234ba0fb032a2651b0ff"
+    "txHash": "0x3752fe8446b3f99351bf1502618ebee1e8a82903fa5f1e9365681d1a3fc7a0c8"
   },
   "proxies": [
     {
@@ -17,19 +17,19 @@
     },
     {
       "address": "0x21AFcE22Ba28971198AEb28ED52126b2152ebB9E",
-      "txHash": "0x71f3ce2e8305c7e3371b691c499133b7e9d427515afeaf1aaf6e41c5616279d3",
+      "txHash": "0x54e9c892c6c677a253ca4ad1a0194328aca5743c54dcd0c845856af0984b9c59",
       "kind": "transparent"
     },
     {
       "address": "0xa0Fd96AC21016FC242A4D02c1a9195b2688Ee242",
-      "txHash": "0x73b2b89d1d7a13219fb69e405f9cc099b3d159bfc51815082b1fc358d0221b74",
+      "txHash": "0x6dbf2fdc9d07caa3b499ceba4fbea807a5194c2b9ba95269ab8723eed9ba0d00",
       "kind": "transparent"
     }
   ],
   "impls": {
     "9bec0c666aba5bc51a79f6a63d3f72dd0ebada7fe220a3fe084539c9f1d9cfdc": {
       "address": "0x2DEa0129c6ed63d2b3B68652B50F3a9Ea1B36F62",
-      "txHash": "0xfaeed531ac23222e68055658004aa7b51c3d77a68ecd5d2a55ba63e4f766605e",
+      "txHash": "0xf1478408f24dae92ca814aa4d659c9bda098566c53136cd77deb200b006126b7",
       "layout": {
         "solcVersion": "0.8.12",
         "storage": [
@@ -291,9 +291,9 @@
         }
       }
     },
-    "94fbc9bb2a8232481d7aaafb00c6ce32436133b29f655af3fd165caa1a515306": {
+    "3fca5213502a490203d2d278119f33a15f0b1245f80041f7556e63bbb001de98": {
       "address": "0x16e30a23cfc790866ae2D908Fa04f8c6328c991A",
-      "txHash": "0x0211969129818150a474aa94b1a3cf1fb439340643c0c45887d790a41ce11333",
+      "txHash": "0xa4f3480817ed72f7201c7b591e629a6b654c6651d5afd555d764dcb74b0758a7",
       "layout": {
         "solcVersion": "0.8.12",
         "storage": [
@@ -366,7 +366,7 @@
             "label": "_bribeManager",
             "offset": 0,
             "slot": "201",
-            "type": "t_contract(IBribeManager)3843",
+            "type": "t_contract(IBribeManager)3815",
             "contract": "MerkleOrchard",
             "src": "contracts\\MerkleOrchard.sol:27"
           },
@@ -424,7 +424,7 @@
             "label": "bytes32",
             "numberOfBytes": "32"
           },
-          "t_contract(IBribeManager)3843": {
+          "t_contract(IBribeManager)3815": {
             "label": "contract IBribeManager",
             "numberOfBytes": "20"
           },

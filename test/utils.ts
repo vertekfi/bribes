@@ -1,46 +1,8 @@
-import { loadFixture } from '@nomicfoundation/hardhat-network-helpers';
-import { expect } from 'chai';
 import { BigNumber, Contract, ethers } from 'ethers';
 import { parseEther } from 'ethers/lib/utils';
 import * as erc20 from '../node_modules/@openzeppelin/contracts/build/contracts/ERC20.json';
-import { TOKENS, GAUGES } from './data';
-import { bribeFixture } from './fixtures/bribe.fixture';
-
-export const oneSecondInMs = 1000;
-
-// Contract storage slots for user balances
-// Use to overwrite a users balance to any value for testing
-// Removes need for a whole dex and swap setup just for test tokens
-export const ASHARE_BALANCEOF_SLOT = 0;
-export const BUSD_BALANCEOF_SLOT = 1;
-export const USDC_BALANCEOF_SLOT = 1;
-export const AMES_BALANCEOF_SLOT = 0;
-export const WBNB_BALANCEOF_SLOT = 3;
-
-export const GAUGE_BALANCEOF_SLOT = 5;
-export const BAL_POOL_BALANCEOFSLOT = 0; // WeightedPool instance slot
 
 export const keccak256 = ethers.utils.solidityKeccak256;
-
-export const bribeAmount = parseEther('100');
-
-export async function addBribe(
-  token = TOKENS[0],
-  amount = bribeAmount,
-  gauge = GAUGES[0],
-  epochStartTime?: number
-) {
-  const { bribeManager, gaugeController } = await loadFixture(bribeFixture);
-
-  // Give valid args and then verify
-  await bribeManager.addBribe(token, amount, gauge);
-  const epochTime = epochStartTime || (await gaugeController.time_total());
-  const gaugeBribes: any[] = await bribeManager.getGaugeBribes(gauge, epochTime);
-
-  expect(gaugeBribes.length).to.equal(1);
-
-  return epochTime;
-}
 
 export const prepStorageSlotWrite = (receiverAddress: string, storageSlot: number) => {
   return ethers.utils.solidityKeccak256(

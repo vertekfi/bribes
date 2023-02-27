@@ -1,9 +1,10 @@
 import { Contract } from 'ethers';
 import { parseEther } from 'ethers/lib/utils';
 import { ethers, upgrades } from 'hardhat';
-import { GAUGES, GAUGE_CONTROLLER, TOKENS, VAULT } from '../data';
-import { BUSD_BALANCEOF_SLOT, giveTokenBalanceFor, WBNB_BALANCEOF_SLOT } from '../utils';
+import { BUSD, GAUGES, GAUGE_CONTROLLER, TOKENS, VAULT, WBNB } from '../data';
+import { giveTokenBalanceFor } from '../utils';
 import vaultABI from '../abis/Vault.json';
+import { BUSD_BALANCEOF_SLOT, WBNB_BALANCEOF_SLOT } from '../constants';
 
 export async function bribeFixture() {
   const [gaugeController, vault] = await Promise.all([
@@ -47,28 +48,28 @@ export async function bribeFixture() {
   await Promise.all([
     giveTokenBalanceFor(
       ethers.provider,
-      TOKENS[0],
+      BUSD,
       adminAccount.address,
       BUSD_BALANCEOF_SLOT,
       parseEther('1000')
     ),
     giveTokenBalanceFor(
       ethers.provider,
-      TOKENS[1],
+      WBNB,
       adminAccount.address,
       WBNB_BALANCEOF_SLOT,
       parseEther('1000')
     ),
     giveTokenBalanceFor(
       ethers.provider,
-      TOKENS[0],
+      BUSD,
       randomUserAccount.address,
       BUSD_BALANCEOF_SLOT,
       parseEther('1000')
     ),
     giveTokenBalanceFor(
       ethers.provider,
-      TOKENS[1],
+      WBNB,
       randomUserAccount.address,
       WBNB_BALANCEOF_SLOT,
       parseEther('1000')
