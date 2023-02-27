@@ -9,7 +9,6 @@ import "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeab
 import "./interfaces/IGaugeController.sol";
 import "./interfaces/ILiquidityGauge.sol";
 import "./interfaces/IRewardHandler.sol";
-import "./interfaces/IVault.sol";
 
 contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20Upgradeable for IERC20Upgradeable;
@@ -19,10 +18,7 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
 
     IGaugeController private _gaugeController;
 
-    IVault private _vault;
-
     // Reference to reward handler contract
-    // Used to send bribe amounts to vault internal balance of rewarder contract
     IRewardHandler private _rewardHandler;
 
     EnumerableSetUpgradeable.AddressSet private _whitelistedTokens;
@@ -63,7 +59,6 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
 
         _gaugeController = IGaugeController(gaugeController);
         _rewardHandler = IRewardHandler(rewardHandler);
-        _vault = IVault(vault);
 
         // Call all base initializers
         __AccessControl_init();
@@ -142,10 +137,6 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     }
 
     // ====================================== VIEW ===================================== //
-
-    function getVault() public view returns (IVault) {
-        return _vault;
-    }
 
     function getRewardHandler() public view returns (IRewardHandler) {
         return _rewardHandler;
