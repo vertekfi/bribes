@@ -44,8 +44,11 @@ export function getERC20(address: string, signer) {
   return new Contract(address, erc20.abi, signer);
 }
 
-export function getRandomBytes32(value = parseEther('1')) {
-  return ethers.utils.hexZeroPad(value.toHexString(), 32);
+export function getRandomBytes32() {
+  const values = ['1', '2', '64', , '128', '256'];
+  const rand = Math.round(Math.random() * (values.length - 1));
+
+  return ethers.utils.hexZeroPad(parseEther(values[rand]).toHexString(), 32);
 }
 
 /**

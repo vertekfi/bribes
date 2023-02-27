@@ -3,6 +3,7 @@ import { expect } from 'chai';
 import { BigNumberish } from 'ethers';
 import { parseEther } from 'ethers/lib/utils';
 import { ethers } from 'hardhat';
+import { addBribe } from './bribe.utils';
 import { GAUGES, TOKENS } from './data';
 import { bribeFixture } from './fixtures/bribe.fixture';
 import { getERC20 } from './utils';
@@ -38,24 +39,6 @@ describe('BribeManager', () => {
 });
 
 describe('Adding Bribes', () => {
-  async function addBribe(
-    token = TOKENS[0],
-    amount = bribeAmount,
-    gauge = GAUGES[0],
-    epochStartTime?: number
-  ) {
-    const { bribeManager, gaugeController } = await loadFixture(bribeFixture);
-
-    // Give valid args and then verify
-    await bribeManager.addBribe(token, amount, gauge);
-    const epochTime = epochStartTime || (await gaugeController.time_total());
-    const gaugeBribes: any[] = await bribeManager.getGaugeBribes(gauge, epochTime);
-
-    expect(gaugeBribes.length).to.equal(1);
-
-    return epochTime;
-  }
-
   describe('Token input validation', () => {
     it('reverts for zero address', async () => {
       const { bribeManager } = await loadFixture(bribeFixture);
@@ -190,7 +173,7 @@ describe('Adding Bribes', () => {
     const amount = bribeAmount;
     const gauge = GAUGES[0];
 
-    let epochTime: BigNumberish;
+    // let epochTime: BigNumberish;
 
     describe('Improper arguments', () => {
       // TODO: Update contract and test removing zero checks to see effect on contract operations
@@ -209,7 +192,7 @@ describe('Adding Bribes', () => {
 
       it('reverts if bribe record does not exist', async () => {
         const { bribeManager } = await loadFixture(bribeFixture);
-        epochTime = await addBribe(token, amount, gauge);
+        const { epochTime } = await addBribe(token, amount, gauge);
 
         // Give valid inputs but for a gauge that no bribe has been created for
         await expect(bribeManager.getBribe(GAUGES[1], epochTime, 0)).to.be.revertedWith(
@@ -219,7 +202,7 @@ describe('Adding Bribes', () => {
 
       it('reverts for an invalid bribe index', async () => {
         const { bribeManager } = await loadFixture(bribeFixture);
-        epochTime = await addBribe(token, amount, gauge);
+        const { epochTime } = await addBribe(token, amount, gauge);
 
         // Currently only one record added. So index of 1 should be invalid
         await expect(bribeManager.getBribe(gauge, epochTime, 1)).to.be.revertedWith(
@@ -231,7 +214,7 @@ describe('Adding Bribes', () => {
     describe('Correct arguments provided', () => {
       it('returns the bribe record', async () => {
         const { bribeManager, adminAccount } = await loadFixture(bribeFixture);
-        epochTime = await addBribe(token, amount, gauge);
+        const { epochTime } = await addBribe(token, amount, gauge);
 
         const bribe = await bribeManager.getBribe(gauge, epochTime, 0);
         expect(bribe.gauge).to.equal(gauge);

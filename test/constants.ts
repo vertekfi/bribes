@@ -1,8 +1,12 @@
+import { parseEther } from '@ethersproject/units';
 import { ethers } from 'hardhat';
+import { toBytes32 } from './utils';
 
 export const ZERO_ADDRESS = ethers.constants.AddressZero;
 
 export const ONE_SECOND_MS = 1000;
+
+export const ZERO_BYTES_32 = toBytes32(parseEther('0'));
 
 // Contract storage slots for user balances
 // Use to overwrite a users balance to any value for testing

@@ -21,5 +21,10 @@ export async function addBribe(
 
   expect(gaugeBribes.length).to.equal(1);
 
-  return epochTime;
+  return {
+    token,
+    amount,
+    gauge,
+    epochTime,
+  };
 }

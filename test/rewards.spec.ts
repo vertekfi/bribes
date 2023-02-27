@@ -1,10 +1,10 @@
-import { impersonateAccount, loadFixture } from '@nomicfoundation/hardhat-network-helpers';
+import { loadFixture } from '@nomicfoundation/hardhat-network-helpers';
 import { expect } from 'chai';
-import { BigNumber, Contract } from 'ethers';
-import { defaultAbiCoder, formatEther, parseEther } from 'ethers/lib/utils';
+import { BigNumber } from 'ethers';
+import { parseEther } from 'ethers/lib/utils';
 import { ethers } from 'hardhat';
 import { addBribe } from './bribe.utils';
-import { ZERO_ADDRESS } from './constants';
+import { ZERO_ADDRESS, ZERO_BYTES_32 } from './constants';
 import { GAUGES, MERKLE_ROOT, TOKENS, USER_DATA } from './data';
 import { bribeFixture } from './fixtures/bribe.fixture';
 import { getAccessControlRevertString, getERC20, getRandomBytes32 } from './utils';
@@ -14,7 +14,7 @@ const bribeAmount = parseEther('100');
 async function doBribeAndDistribution(root?: string) {
   const { rewardHandler, adminAccount } = await loadFixture(bribeFixture);
 
-  const epochTime = await addBribe();
+  const { epochTime } = await addBribe();
 
   // addBribe uses index zero by default
   const token = TOKENS[0];
@@ -77,7 +77,7 @@ describe('Merkle Rewards', () => {
       it('reverts if merkle root is not provided', async () => {
         const { rewardHandler, adminAccount } = await loadFixture(bribeFixture);
 
-        const epochTime = await addBribe();
+        const { epochTime } = await addBribe();
 
         // addBribe uses index zero by default
         const token = TOKENS[0];
@@ -93,14 +93,14 @@ describe('Merkle Rewards', () => {
             bribeAmount,
             adminAccount.address,
             distributionId,
-            getRandomBytes32(parseEther('0')) // invalid zero bytes
+            ZERO_BYTES_32 // invalid zero bytes
           )
         ).to.be.revertedWith('Merkle root not set');
       });
 
       it('reverts when the bribe record values do not match input parameters', async () => {
         const { rewardHandler, adminAccount } = await loadFixture(bribeFixture);
-        const epochTime = await addBribe();
+        const { epochTime } = await addBribe();
         // addBribe uses index zero by default
         const token = TOKENS[0];
         const gauge = GAUGES[0];
@@ -223,13 +223,11 @@ describe('Merkle Rewards', () => {
     });
 
     describe('When claim state is valid', () => {
-      it('claims a distribution for a user', async () => {
+      async function doValidClaim() {
         const { rewardHandler, distributionId, adminAccount, token } = await doBribeAndDistribution(
           MERKLE_ROOT
         );
-
         const testClaimer = USER_DATA[1];
-
         const balance = testClaimer.values.value[1]; // amount being claimed
         const distributor = adminAccount.address;
         const tokenIndex = 0;
@@ -240,7 +238,6 @@ describe('Merkle Rewards', () => {
         // Verify the user received their tokens
         const tokenInstance = getERC20(token, adminAccount);
         const userBalanceBefore: BigNumber = await tokenInstance.balanceOf(claimer);
-        console.log(formatEther(userBalanceBefore));
 
         await rewardHandler.claimDistributions(
           claimer,
@@ -249,7 +246,6 @@ describe('Merkle Rewards', () => {
         );
 
         const userBalanceAfter: BigNumber = await tokenInstance.balanceOf(claimer);
-        console.log(formatEther(userBalanceAfter));
 
         expect(userBalanceAfter.sub(userBalanceBefore)).to.equal(balance);
 
@@ -261,40 +257,32 @@ describe('Merkle Rewards', () => {
         );
 
         expect(isClaimed).to.be.true;
+
+        return {
+          claimer,
+          claims: [[distributionId, balance, distributor, tokenIndex, merkleProof]],
+          tokensToClaim,
+          rewardHandler,
+        };
+      }
+
+      it('claims a distribution for a user', async () => {
+        await doValidClaim();
       });
 
-      //  it('does not allow claiming a distribution again', async () => {
-      //   const { distributionId, adminAccount, token } = await doBribeAndDistribution(MERKLE_ROOT);
+      it('does not allow claiming a distribution again', async () => {
+        const { claimer, claims, tokensToClaim, rewardHandler } = await doValidClaim();
 
-      //   const testClaimer = USER_DATA[1];
-
-      //   const balance = testClaimer.values.value[1]; // amount being claimed
-      //   const distributor = adminAccount.address;
-      //   const tokenIndex = 0;
-      //   const merkleProof = [];
-
-      //   const claim = {
-      //     distributionId,
-      //     balance,
-      //     distributor,
-      //   };
-      // });
+        await expect(
+          rewardHandler.claimDistributions(claimer, claims, tokensToClaim)
+        ).to.be.revertedWith('cannot claim twice');
+      });
 
       // it('claims multiple distributions for a user', async () => {
       //   const { distributionId, adminAccount, token } = await doBribeAndDistribution(MERKLE_ROOT);
-
       //   const testClaimer = USER_DATA[1];
-      // // TODO: Test claiming with multiple tokens/distributions, etc.
-      //   const balance = testClaimer.values.value[1]; // amount being claimed
-      //   const distributor = adminAccount.address;
-      //   const tokenIndex = 0;
-      //   const merkleProof = [];
 
-      //   const claim = {
-      //     distributionId,
-      //     balance,
-      //     distributor,
-      //   };
+      //   // Test claiming with multiple tokens/distributions, etc.
       // });
     });
   });
