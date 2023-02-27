@@ -24,8 +24,6 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
     bytes32 public constant DISTRIBUTOR_ROLE = keccak256("DISTRIBUTOR_ROLE");
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
-    IVault private _vault;
-
     IBribeManager private _bribeManager;
 
     // Recorded distributions
@@ -74,20 +72,14 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
         _disableInitializers();
     }
 
-    function initialize(address vault) public initializer {
-        require(vault != address(0), "Vault not provided");
+    function initialize() public initializer {
         // require(bribeManager != address(0), "BribeManager not provided");
 
-        _vault = IVault(vault);
         // _bribeManager = IBribeManager(bribeManager);
 
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _grantRole(DISTRIBUTOR_ROLE, _msgSender());
         _grantRole(OPERATOR_ROLE, _msgSender());
-    }
-
-    function getVault() public view returns (IVault) {
-        return _vault;
     }
 
     function getBribeManager() public view returns (IBribeManager) {
