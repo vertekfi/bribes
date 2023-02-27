@@ -2,7 +2,7 @@
   "manifestVersion": "3.2",
   "admin": {
     "address": "0x6E1644313086Cf6e90c15FD73B9DF445d385583e",
-    "txHash": "0xf5732c8bafbd618da3137c2584e50bed974415829547c34663b6c426d2db40e3"
+    "txHash": "0xf098efb6274795f93342ff43f4c8d80444c2d282c82e4f8639a3fb4b3d8ee6d4"
   },
   "proxies": [
     {
@@ -17,19 +17,19 @@
     },
     {
       "address": "0x21AFcE22Ba28971198AEb28ED52126b2152ebB9E",
-      "txHash": "0xea7d4cdad686adb505ad2fd31ca97fb9cccc535538545bc43108d04c8700d405",
+      "txHash": "0xd4873510ae4ac03f19e086bc43315f7c18c9f449a8331cd9375511d6e63223d1",
       "kind": "transparent"
     },
     {
       "address": "0xa0Fd96AC21016FC242A4D02c1a9195b2688Ee242",
-      "txHash": "0x1ea9968892a51b2b66e0f500f513fa356970fc84cbb83ec730ecedbf822f8f19",
+      "txHash": "0x7b327b4a2d603e9040a5d29a1d42a1212aece82f3542b4dd2cb1bd6f220eb316",
       "kind": "transparent"
     }
   ],
   "impls": {
-    "7d86ab18ad54f79be7d329bef7ad9b567f8db87ef41506f1c3ea0cfe281242c8": {
+    "5081c248ffea8c4db4cf2f3ac3ae64ae6a345a41d952f0ebfc9a77aa30ab02ed": {
       "address": "0x16e30a23cfc790866ae2D908Fa04f8c6328c991A",
-      "txHash": "0x1f64ac33a5526bcd032ede442135d92f9ef9531333991c645dabddfda15b54c7",
+      "txHash": "0x024ffef1f687ab3f817443e74c79b948c6f5487ad8bf419bec13c9ab10804e95",
       "layout": {
         "solcVersion": "0.8.12",
         "storage": [
@@ -102,7 +102,7 @@
             "label": "_bribeManager",
             "offset": 0,
             "slot": "201",
-            "type": "t_contract(IBribeManager)5166",
+            "type": "t_contract(IBribeManager)3809",
             "contract": "MerkleOrchard",
             "src": "contracts\\MerkleOrchard.sol:27"
           },
@@ -160,7 +160,7 @@
             "label": "bytes32",
             "numberOfBytes": "32"
           },
-          "t_contract(IBribeManager)5166": {
+          "t_contract(IBribeManager)3809": {
             "label": "contract IBribeManager",
             "numberOfBytes": "20"
           },
@@ -225,9 +225,9 @@
         }
       }
     },
-    "d0194116a2dad4485a5a20c809353a9c0e8725a0d41599e8d6c1d061338ab1f7": {
+    "9bec0c666aba5bc51a79f6a63d3f72dd0ebada7fe220a3fe084539c9f1d9cfdc": {
       "address": "0x2DEa0129c6ed63d2b3B68652B50F3a9Ea1B36F62",
-      "txHash": "0xb27d62fc86f778b051fa2c8a4ff6185e61096048a1f6e11895812965cb989fc3",
+      "txHash": "0x1a0962fdf162850779d0201f0e3dcf8077b1240836697499913ac8271ad5be83",
       "layout": {
         "solcVersion": "0.8.12",
         "storage": [
@@ -300,7 +300,7 @@
             "label": "_gaugeController",
             "offset": 0,
             "slot": "201",
-            "type": "t_contract(IGaugeController)3845",
+            "type": "t_contract(IGaugeController)5190",
             "contract": "BribeManager",
             "src": "contracts\\BribeManager.sol:19"
           },
@@ -308,7 +308,7 @@
             "label": "_rewardHandler",
             "offset": 0,
             "slot": "202",
-            "type": "t_contract(IRewardHandler)3878",
+            "type": "t_contract(IRewardHandler)5223",
             "contract": "BribeManager",
             "src": "contracts\\BribeManager.sol:22"
           },
@@ -316,7 +316,7 @@
             "label": "_whitelistedTokens",
             "offset": 0,
             "slot": "203",
-            "type": "t_struct(AddressSet)2793_storage",
+            "type": "t_struct(AddressSet)3295_storage",
             "contract": "BribeManager",
             "src": "contracts\\BribeManager.sol:24"
           },
@@ -324,7 +324,7 @@
             "label": "_approvedGauges",
             "offset": 0,
             "slot": "205",
-            "type": "t_struct(AddressSet)2793_storage",
+            "type": "t_struct(AddressSet)3295_storage",
             "contract": "BribeManager",
             "src": "contracts\\BribeManager.sol:26"
           },
@@ -332,7 +332,7 @@
             "label": "_gaugeEpochBribes",
             "offset": 0,
             "slot": "207",
-            "type": "t_mapping(t_address,t_mapping(t_uint256,t_array(t_struct(Bribe)3867_storage)dyn_storage))",
+            "type": "t_mapping(t_address,t_mapping(t_uint256,t_array(t_struct(Bribe)5212_storage)dyn_storage))",
             "contract": "BribeManager",
             "src": "contracts\\BribeManager.sol:29"
           }
@@ -346,7 +346,7 @@
             "label": "bytes32[]",
             "numberOfBytes": "32"
           },
-          "t_array(t_struct(Bribe)3867_storage)dyn_storage": {
+          "t_array(t_struct(Bribe)5212_storage)dyn_storage": {
             "label": "struct Bribe[]",
             "numberOfBytes": "32"
           },
@@ -366,11 +366,11 @@
             "label": "bytes32",
             "numberOfBytes": "32"
           },
-          "t_contract(IGaugeController)3845": {
+          "t_contract(IGaugeController)5190": {
             "label": "contract IGaugeController",
             "numberOfBytes": "20"
           },
-          "t_contract(IRewardHandler)3878": {
+          "t_contract(IRewardHandler)5223": {
             "label": "contract IRewardHandler",
             "numberOfBytes": "20"
           },
@@ -378,7 +378,7 @@
             "label": "mapping(address => bool)",
             "numberOfBytes": "32"
           },
-          "t_mapping(t_address,t_mapping(t_uint256,t_array(t_struct(Bribe)3867_storage)dyn_storage))": {
+          "t_mapping(t_address,t_mapping(t_uint256,t_array(t_struct(Bribe)5212_storage)dyn_storage))": {
             "label": "mapping(address => mapping(uint256 => struct Bribe[]))",
             "numberOfBytes": "32"
           },
@@ -390,23 +390,23 @@
             "label": "mapping(bytes32 => uint256)",
             "numberOfBytes": "32"
           },
-          "t_mapping(t_uint256,t_array(t_struct(Bribe)3867_storage)dyn_storage)": {
+          "t_mapping(t_uint256,t_array(t_struct(Bribe)5212_storage)dyn_storage)": {
             "label": "mapping(uint256 => struct Bribe[])",
             "numberOfBytes": "32"
           },
-          "t_struct(AddressSet)2793_storage": {
+          "t_struct(AddressSet)3295_storage": {
             "label": "struct EnumerableSetUpgradeable.AddressSet",
             "members": [
               {
                 "label": "_inner",
-                "type": "t_struct(Set)2478_storage",
+                "type": "t_struct(Set)2980_storage",
                 "offset": 0,
                 "slot": "0"
               }
             ],
             "numberOfBytes": "64"
           },
-          "t_struct(Bribe)3867_storage": {
+          "t_struct(Bribe)5212_storage": {
             "label": "struct Bribe",
             "members": [
               {
@@ -460,7 +460,7 @@
             ],
             "numberOfBytes": "64"
           },
-          "t_struct(Set)2478_storage": {
+          "t_struct(Set)2980_storage": {
             "label": "struct EnumerableSetUpgradeable.Set",
             "members": [
               {

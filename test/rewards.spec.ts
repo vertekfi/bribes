@@ -25,9 +25,22 @@ describe('Merkle Rewards', () => {
 
     expect(gaugeBribes.length).to.equal(1);
   }
-  describe('Adding Rewards', () => {
-    it('adds an epoch reward for a gauge', async () => {
-      const { bribeManager } = await loadFixture(bribeFixture);
+
+  describe('Creation Distributions', () => {
+    describe('Caller does not have the proper role', () => {
+      it('reverts', async () => {});
+    });
+
+    describe('Incorrect input values', () => {
+      it('reverts when the bribe manager has not been set', async () => {});
+      it('reverts when the bribe record does not exist', async () => {});
+    });
+
+    describe('When input values are correct', () => {
+      // Need to create a bribe
+      // Which creates a distribution record on rewarder <- verify
+
+      it('increments the distribution id for the channel', async () => {});
     });
   });
 

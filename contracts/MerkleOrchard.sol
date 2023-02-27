@@ -42,7 +42,10 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
     mapping(bytes32 => uint256) private _remainingBalance;
 
     modifier onlyManager() {
-        require(_msgSender() == address(_bribeManager), "Not the manager");
+        require(
+            _msgSender() != address(0) && _msgSender() == address(_bribeManager),
+            "Not the manager"
+        );
         _;
     }
 
@@ -149,7 +152,7 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
         Claim[] memory claims,
         IERC20Upgradeable[] memory tokens
     ) external {
-        _processClaims(claimer, claimer, claims, tokens, false);
+        _processClaims(claimer, claimer, claims, tokens);
     }
 
     // ==================================== ONLY DISTRIBUTOR ================================== //
@@ -171,6 +174,7 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
         bytes32 merkleRoot
     ) external onlyRole(DISTRIBUTOR_ROLE) nonReentrant {
         require(address(_bribeManager) != address(0), "Manager not set");
+        require(merkleRoot != bytes32(0), "Merkle root not set");
 
         // Will check and revert for basic incorrect values
         Bribe memory bribe = _bribeManager.getBribe(gauge, epoch, bribeRecordIndex);
@@ -184,25 +188,12 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
         );
 
         bytes32 channelId = _getChannelId(token, briber);
+
         require(
             _nextDistributionId[channelId] == distributionId || _nextDistributionId[channelId] == 0,
             "invalid distribution ID"
         );
-        require(_remainingBalance[channelId] >= amount, "Insufficient internal balance for amount");
-
-        // token.safeTransferFrom(briber, address(this), amount);
-        // token.approve(address(getVault()), amount);
-        // IVault.UserBalanceOp[] memory ops = new IVault.UserBalanceOp[](1);
-
-        // ops[0] = IVault.UserBalanceOp({
-        //     asset: IAsset(address(token)),
-        //     amount: amount,
-        //     sender: address(this),
-        //     recipient: payable(address(this)),
-        //     kind: IVault.UserBalanceOpKind.DEPOSIT_INTERNAL
-        // });
-
-        // getVault().manageUserBalance(ops);
+        require(_remainingBalance[channelId] >= amount, "Insufficient channel balance for amount");
 
         // This is updated by the bribe manager through `addDistribution`
         // _remainingBalance[channelId] += amount;
@@ -214,7 +205,7 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
 
     // ==================================== ONLY MANAGER ================================== //
 
-    function addDistribution(
+    function managerAddDistribution(
         IERC20Upgradeable token,
         address briber,
         uint256 amount
@@ -227,21 +218,6 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
 
         // manager approves this contract for whitelisted tokens
         token.safeTransferFrom(address(_bribeManager), address(this), amount);
-
-        // Deposit amount from manager to this contracts vault internal balance
-        // This is to keep things a bit more loosely coupled in the event of, anything
-        // token.approve(address(getVault()), amount);
-        // IVault.UserBalanceOp[] memory ops = new IVault.UserBalanceOp[](1);
-
-        // ops[0] = IVault.UserBalanceOp({
-        //     asset: address(token),
-        //     amount: amount,
-        //     sender: address(_bribeManager),
-        //     recipient: payable(address(this)),
-        //     kind: IVault.UserBalanceOpKind.DEPOSIT_INTERNAL
-        // });
-
-        // getVault().manageUserBalance(ops);
     }
 
     // ==================================== HELPER FUNCTIONS ================================== //
@@ -254,8 +230,7 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
         address claimer,
         address recipient,
         Claim[] memory claims,
-        IERC20Upgradeable[] memory tokens,
-        bool asInternalBalance
+        IERC20Upgradeable[] memory tokens
     ) internal {
         uint256[] memory amounts = new uint256[](tokens.length);
         Claim memory claim;

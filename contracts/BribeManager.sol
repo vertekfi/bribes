@@ -129,7 +129,7 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         // Results in two transfers (user => here, here => rewarder)
         // But currently makes tracking the flow a bit clearer
         IERC20Upgradeable(token).safeTransferFrom(_msgSender(), address(this), amount);
-        _rewardHandler.addDistribution(IERC20Upgradeable(token), _msgSender(), amount);
+        _rewardHandler.managerAddDistribution(IERC20Upgradeable(token), _msgSender(), amount);
 
         emit BribeAdded(nextEpochStart, gauge, token, amount);
     }

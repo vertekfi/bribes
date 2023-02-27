@@ -105,13 +105,6 @@ describe('Adding Bribes', () => {
       await addBribe();
     });
 
-    it('adds a distribution record through reward handler', async () => {
-      const { adminAccount, rewardHandler } = await loadFixture(bribeFixture);
-      const token = getERC20(TOKENS[0], adminAccount);
-      await addBribe(token.address);
-      expect(await token.balanceOf(rewardHandler.address)).to.equal(bribeAmount);
-    });
-
     it('correctly sets all bribe fields', async () => {
       const { bribeManager, gaugeController, adminAccount } = await loadFixture(bribeFixture);
 
@@ -168,6 +161,27 @@ describe('Adding Bribes', () => {
 
       // New bribe should be aligned with updated controller checkpoint epoch
       expect(gaugeBribes[0].epochStartTime).to.equal(controllerNextEpochTime);
+    });
+
+    describe('Updating reward handler state', () => {
+      it('reward handler balance for token is updated', async () => {
+        const { adminAccount, rewardHandler } = await loadFixture(bribeFixture);
+        const token = getERC20(TOKENS[0], adminAccount);
+        await addBribe(token.address);
+        expect(await token.balanceOf(rewardHandler.address)).to.equal(bribeAmount);
+      });
+
+      it('updates the remaining balance for the reward distribution channel', async () => {
+        const { adminAccount, rewardHandler } = await loadFixture(bribeFixture);
+
+        const token = TOKENS[1];
+        const amount = bribeAmount;
+        await addBribe(token, amount);
+
+        // channel ids are created from the hash of the token and the briber
+        const balance = await rewardHandler.getRemainingBalance(token, adminAccount.address);
+        expect(balance).to.equal(amount);
+      });
     });
   });
 

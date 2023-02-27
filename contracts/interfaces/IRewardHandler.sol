@@ -13,5 +13,9 @@ struct Bribe {
 }
 
 interface IRewardHandler {
-    function addDistribution(IERC20Upgradeable token, address briber, uint256 amount) external;
+    function managerAddDistribution(
+        IERC20Upgradeable token,
+        address briber,
+        uint256 amount
+    ) external;
 }
