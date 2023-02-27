@@ -44,7 +44,7 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
     mapping(bytes32 => uint256) private _remainingBalance;
 
     modifier onlyManager() {
-        require(_msgSender() == _bribeManager, "Not the manager");
+        require(_msgSender() == address(_bribeManager), "Not the manager");
         _;
     }
 
@@ -74,12 +74,12 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
         _disableInitializers();
     }
 
-    function initialize(address vault, address bribeManager) public initializer {
+    function initialize(address vault) public initializer {
         require(vault != address(0), "Vault not provided");
-        require(bribeManager != address(0), "BribeManager not provided");
+        // require(bribeManager != address(0), "BribeManager not provided");
 
         _vault = IVault(vault);
-        _bribeManager = IBribeManager(bribeManager);
+        // _bribeManager = IBribeManager(bribeManager);
 
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _grantRole(DISTRIBUTOR_ROLE, _msgSender());
@@ -90,7 +90,7 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
         return _vault;
     }
 
-    function getBribeManager() public view returns (address) {
+    function getBribeManager() public view returns (IBribeManager) {
         return _bribeManager;
     }
 
@@ -178,6 +178,8 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
         uint256 distributionId,
         bytes32 merkleRoot
     ) external onlyRole(DISTRIBUTOR_ROLE) nonReentrant {
+        require(address(_bribeManager) != address(0), "Manager not set");
+
         // Will check and revert for basic incorrect values
         Bribe memory bribe = _bribeManager.getBribe(gauge, epoch, bribeRecordIndex);
 
@@ -231,21 +233,23 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
         bytes32 channelId = _getChannelId(token, briber);
         _remainingBalance[channelId] += amount;
 
+        // manager approves this contract for whitelisted tokens
+        token.safeTransferFrom(address(_bribeManager), address(this), amount);
+
         // Deposit amount from manager to this contracts vault internal balance
         // This is to keep things a bit more loosely coupled in the event of, anything
-        // TODO: Given above line. Approve treasury to access internal balance for tokens if needed?
-        token.approve(address(getVault()), amount);
-        IVault.UserBalanceOp[] memory ops = new IVault.UserBalanceOp[](1);
+        // token.approve(address(getVault()), amount);
+        // IVault.UserBalanceOp[] memory ops = new IVault.UserBalanceOp[](1);
 
-        ops[0] = IVault.UserBalanceOp({
-            asset: address(token),
-            amount: amount,
-            sender: address(_bribeManager), // manager approves this contract for whitelisted tokens
-            recipient: payable(address(this)),
-            kind: IVault.UserBalanceOpKind.DEPOSIT_INTERNAL
-        });
+        // ops[0] = IVault.UserBalanceOp({
+        //     asset: address(token),
+        //     amount: amount,
+        //     sender: address(_bribeManager),
+        //     recipient: payable(address(this)),
+        //     kind: IVault.UserBalanceOpKind.DEPOSIT_INTERNAL
+        // });
 
-        getVault().manageUserBalance(ops);
+        // getVault().manageUserBalance(ops);
     }
 
     // ==================================== HELPER FUNCTIONS ================================== //

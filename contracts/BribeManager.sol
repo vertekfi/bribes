@@ -133,12 +133,9 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
 
         _gaugeEpochBribes[gauge][nextEpochStart].push(bribe);
 
-        // Transfering here to avoid user needing to approve vault as well.
-        // Would be required if we attempted to deposit straight to internal balance from them.
+        // Results in two transfers (user => here, here => rewarder)
+        // But currently makes tracking the flow a bit clearer
         IERC20Upgradeable(token).safeTransferFrom(_msgSender(), address(this), amount);
-
-        // Results in two transfers (user => here for rewarder, rewarder => vault)
-        // But makes tracking the flow easier
         _rewardHandler.addDistribution(IERC20Upgradeable(token), _msgSender(), amount);
 
         emit BribeAdded(nextEpochStart, gauge, token, amount);

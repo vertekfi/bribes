@@ -1,4 +1,5 @@
-import { BigNumber, ethers } from "ethers";
+import { BigNumber, Contract, ethers } from 'ethers';
+import * as erc20 from '../node_modules/@openzeppelin/contracts/build/contracts/ERC20.json';
 
 export const oneSecondInMs = 1000;
 
@@ -16,7 +17,7 @@ export const BAL_POOL_BALANCEOFSLOT = 0; // WeightedPool instance slot
 
 export const prepStorageSlotWrite = (receiverAddress: string, storageSlot: number) => {
   return ethers.utils.solidityKeccak256(
-    ["uint256", "uint256"],
+    ['uint256', 'uint256'],
     [receiverAddress, storageSlot] // key, slot - solidity mappings storage = keccak256(mapping key value, value at that key)
   );
 };
@@ -31,12 +32,12 @@ export const setStorageAt = async (
   index: string,
   value: BigNumber
 ) => {
-  await provider.send("hardhat_setStorageAt", [
+  await provider.send('hardhat_setStorageAt', [
     contractAddress,
     index,
     toBytes32(value).toString(),
   ]);
-  await provider.send("evm_mine", []); // Just mines to the next block
+  await provider.send('evm_mine', []); // Just mines to the next block
 };
 
 export const giveTokenBalanceFor = async (
@@ -49,3 +50,7 @@ export const giveTokenBalanceFor = async (
   const index = prepStorageSlotWrite(addressToSet, storageSlot);
   await setStorageAt(provider, contractAddress, index, amount);
 };
+
+export function getERC20(address: string, signer) {
+  return new Contract(address, erc20.abi, signer);
+}

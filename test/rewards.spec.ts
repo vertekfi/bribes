@@ -17,6 +17,18 @@ const WEEK = DAY * 7;
 // const protocolId = "Funny dummy money";
 
 describe('Merkle Rewards', () => {
+  async function addBribe() {
+    const { bribeManager, gaugeController } = await loadFixture(bribeFixture);
+
+    // Give valid args and then verify
+    const gauge = GAUGES[0];
+    await bribeManager.addBribe(TOKENS[0], bribeAmount, gauge);
+    const epochTime = await gaugeController.time_total();
+    const gaugeBribes: any[] = await bribeManager.getGaugeBribes(epochTime, gauge);
+
+    expect(gaugeBribes.length).to.equal(1);
+  }
+
   describe('Adding Rewards', () => {
     it('adds an epoch reward for a gauge', async () => {
       const { bribeManager } = await loadFixture(bribeFixture);
