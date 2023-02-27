@@ -9,6 +9,8 @@ async function main() {
   const rewardHandler = await upgrades.deployProxy(MerkleOrchard, []);
   await rewardHandler.deployed();
 
+  console.log(`MerkelOrchard deployed to: ${rewardHandler.address}`);
+
   const BribeManager = await ethers.getContractFactory('BribeManager');
   const bribeManager = await upgrades.deployProxy(BribeManager, [
     GAUGE_CONTROLLER,
@@ -17,6 +19,8 @@ async function main() {
     INITIAL_TOKENS,
   ]);
   await bribeManager.deployed();
+
+  console.log(`BribeManager deployed to: ${bribeManager.address}`);
 
   await rewardHandler.setBribeManager(bribeManager.address);
 }
