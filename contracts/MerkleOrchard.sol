@@ -161,7 +161,7 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
      * @notice Allows a distributor role to add a distribution merkle tree.
      * The bribe to user rewarad flow consist of bribes => user votes => off chain vote verification.
      * So additional arguments are added as a requirement to attempt to
-     * help verify/va;idate the distribution against a bribe record.
+     * help verify/validate the distribution against a bribe record.
      */
     function createDistribution(
         IERC20Upgradeable token,
