@@ -79,3 +79,14 @@ export const giveTokenBalanceFor = async (
 export function getERC20(address: string, signer) {
   return new Contract(address, erc20.abi, signer);
 }
+
+export function getRandomBytes32(value = parseEther('1')) {
+  return ethers.utils.hexZeroPad(value.toHexString(), 32);
+}
+
+/**
+ * Replicates error string return from OpenZeppelin AccessControl contract
+ */
+export function getAccessControlRevertString(account: string, role: string) {
+  return `AccessControl: account ${account.toLowerCase()} is missing role ${role}`;
+}
