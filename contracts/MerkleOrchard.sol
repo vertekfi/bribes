@@ -295,24 +295,26 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
                 recipient,
                 claim.balance
             );
+
+            tokens[i].safeTransfer(recipient, amounts[i]);
+
+            // Bribe manager deposits tokens from bribers into this contract vault internal balance.
+            // This adds a bit of abstraction but removes the need for a two way link between both contracts.
+            // Transfer out from this contracts internal vault balance to the recipient.
+            // IVault.UserBalanceOp[] memory ops = new IVault.UserBalanceOp[](tokens.length);
+
+            // for (uint256 i = 0; i < tokens.length; i++) {
+            //     ops[i] = IVault.UserBalanceOp({
+            //         asset: address(tokens[i]),
+            //         amount: amounts[i],
+            //         sender: address(this),
+            //         recipient: payable(recipient),
+            //         kind: IVault.UserBalanceOpKind.WITHDRAW_INTERNAL
+            //     });
+            // }
+
+            // getVault().manageUserBalance(ops);
         }
-
-        // Bribe manager deposits tokens from bribers into this contract vault internal balance.
-        // This adds a bit of abstraction but removes the need for a two way link between both contracts.
-        // Transfer out from this contracts internal vault balance to the recipient.
-        IVault.UserBalanceOp[] memory ops = new IVault.UserBalanceOp[](tokens.length);
-
-        for (uint256 i = 0; i < tokens.length; i++) {
-            ops[i] = IVault.UserBalanceOp({
-                asset: address(tokens[i]),
-                amount: amounts[i],
-                sender: address(this),
-                recipient: payable(recipient),
-                kind: IVault.UserBalanceOpKind.WITHDRAW_INTERNAL
-            });
-        }
-
-        getVault().manageUserBalance(ops);
     }
 
     /**

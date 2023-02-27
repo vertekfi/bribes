@@ -12,14 +12,13 @@ export async function bribeFixture() {
   ]);
 
   const MerkleOrchard = await ethers.getContractFactory('MerkleOrchard');
-  const rewardHandler = await upgrades.deployProxy(MerkleOrchard, [VAULT]);
+  const rewardHandler = await upgrades.deployProxy(MerkleOrchard, []);
   await rewardHandler.deployed();
 
   const BribeManager = await ethers.getContractFactory('BribeManager');
   const bribeManager = await upgrades.deployProxy(BribeManager, [
     gaugeController.address,
     rewardHandler.address,
-    VAULT,
     GAUGES,
     TOKENS,
   ]);

@@ -49,13 +49,11 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     function initialize(
         address gaugeController,
         address rewardHandler,
-        address vault,
         address[] memory _initialGauges,
         address[] memory _initialTokens
     ) public initializer {
         require(gaugeController != address(0), "GaugeController not provided");
         require(rewardHandler != address(0), "Reward handler not provided");
-        require(vault != address(0), "Vault not provided");
 
         _gaugeController = IGaugeController(gaugeController);
         _rewardHandler = IRewardHandler(rewardHandler);
@@ -163,16 +161,16 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     /// @dev Gets a single bribe record for a gauge by index for a given epoch
     function getBribe(
         address gauge,
-        uint256 epoch,
+        uint256 epochTimestamp,
         uint256 index
     ) public view returns (Bribe memory) {
         // TODO: Test various edge cases
         // Test this for learning also. Mappings are init to default values
         // Try testing scenarios where what not thinking of or accounting for these(and or others) could let happen
         require(gauge != address(0), "Invalid gauge");
-        require(epoch > 0, "Invalid epoch");
+        require(epochTimestamp > 0, "Invalid epoch timestamp");
 
-        Bribe[] memory bribes = _gaugeEpochBribes[gauge][epoch];
+        Bribe[] memory bribes = _gaugeEpochBribes[gauge][epochTimestamp];
 
         // TODO: Test various edge cases
         require(bribes.length > 0, "No bribes for epoch");

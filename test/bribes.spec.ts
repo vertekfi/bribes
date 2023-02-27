@@ -1,5 +1,6 @@
 import { loadFixture, time } from '@nomicfoundation/hardhat-network-helpers';
 import { expect } from 'chai';
+import { BigNumberish } from 'ethers';
 import { parseEther } from 'ethers/lib/utils';
 import { ethers } from 'hardhat';
 import { GAUGES, TOKENS } from './data';
@@ -37,162 +38,166 @@ describe('BribeManager', () => {
 });
 
 describe('Adding Bribes', () => {
-  describe('Token input validation', () => {
-    it('reverts for zero address', async () => {
-      const { bribeManager } = await loadFixture(bribeFixture);
+  async function addBribe(
+    token = TOKENS[0],
+    amount = bribeAmount,
+    gauge = GAUGES[0],
+    epochStartTime?: number
+  ) {
+    const { bribeManager, gaugeController } = await loadFixture(bribeFixture);
 
-      await expect(bribeManager.addBribe(ZERO_ADDRESS, 0, ZERO_ADDRESS)).to.be.revertedWith(
-        'Token not provided'
-      );
-    });
+    // Give valid args and then verify
+    await bribeManager.addBribe(token, amount, gauge);
+    const epochTime = epochStartTime || (await gaugeController.time_total());
+    const gaugeBribes: any[] = await bribeManager.getGaugeBribes(gauge, epochTime);
 
-    it('reverts for non whitelist tokens', async () => {
-      const { bribeManager } = await loadFixture(bribeFixture);
+    expect(gaugeBribes.length).to.equal(1);
 
-      await expect(bribeManager.addBribe(WBTC, 0, ZERO_ADDRESS)).to.be.revertedWith(
-        'Token not permitted'
-      );
-    });
+    return epochTime;
+  }
 
-    it('reverts for a zero amount provided', async () => {
-      const { bribeManager } = await loadFixture(bribeFixture);
+  // describe('Token input validation', () => {
+  //   it('reverts for zero address', async () => {
+  //     const { bribeManager } = await loadFixture(bribeFixture);
 
-      await expect(bribeManager.addBribe(TOKENS[0], 0, ZERO_ADDRESS)).to.be.revertedWith(
-        'Zero bribe amount'
-      );
-    });
-  });
-
-  describe('Gauge input validation', () => {
-    it('reverts for zero address', async () => {
-      const { bribeManager } = await loadFixture(bribeFixture);
-
-      await expect(bribeManager.addBribe(TOKENS[0], bribeAmount, ZERO_ADDRESS)).to.be.revertedWith(
-        'Gauge not provided'
-      );
-    });
-
-    it('reverts for an unapproved gauge', async () => {
-      const { bribeManager } = await loadFixture(bribeFixture);
-
-      await expect(
-        bribeManager.addBribe(TOKENS[0], bribeAmount, BNB_BUSD_GAUGE)
-      ).to.be.revertedWith('Gauge not permitted');
-    });
-  });
-
-  describe('When inputs are correct', () => {
-    async function addBribe(token = TOKENS[0], amount = bribeAmount, gauge = GAUGES[0]) {
-      const { bribeManager, gaugeController } = await loadFixture(bribeFixture);
-
-      // Give valid args and then verify
-      await bribeManager.addBribe(token, amount, gauge);
-      const epochTime = await gaugeController.time_total();
-      const gaugeBribes: any[] = await bribeManager.getGaugeBribes(gauge, epochTime);
-
-      expect(gaugeBribes.length).to.equal(1);
-    }
-
-    // it('adds a bribe', async () => {
-    //   await addBribe();
-    // });
-
-    it('adds a distribution record through reward handler', async () => {
-      const { adminAccount, rewardHandler } = await loadFixture(bribeFixture);
-      const token = getERC20(TOKENS[0], adminAccount);
-      await addBribe(token.address);
-      expect(await token.balanceOf(rewardHandler.address)).to.equal(bribeAmount);
-    });
-
-    it('correctly sets all bribe fields', async () => {
-      const { bribeManager, gaugeController, adminAccount } = await loadFixture(bribeFixture);
-
-      // Give valid args and then verify
-      const gauge = GAUGES[0];
-      const token = TOKENS[0];
-      await bribeManager.addBribe(token, bribeAmount, gauge);
-      const controllerNextEpochTime = await gaugeController.time_total();
-      const gaugeBribes: any[] = await bribeManager.getGaugeBribes(gauge, controllerNextEpochTime);
-
-      expect(gaugeBribes.length).to.equal(1);
-      const gaugeBribe = gaugeBribes[0];
-      expect(gaugeBribe.epochStartTime).to.equal(controllerNextEpochTime);
-      expect(gaugeBribe.briber).to.equal(adminAccount.address);
-      expect(gaugeBribe.gauge).to.equal(gauge);
-      expect(gaugeBribe.token).to.equal(token);
-    });
-
-    it('checkpoints the controller to set epoch time correctly', async () => {
-      const { bribeManager, gaugeController } = await loadFixture(bribeFixture);
-
-      /**
-       * Validate that a bribe added during a time when the controller checkpoint is lagging, still has the epochStartTime set correctly.
-       * Should trigger a controller checkpoint to update time_total to the next week, and then set the bribe time to match the new epoch start reference.
-       */
-
-      let controllerNextEpochTime = (await gaugeController.time_total()).toNumber();
-
-      // Move to start of next epoch plus some buffer
-      await time.increaseTo(controllerNextEpochTime + DAY);
-      // Controller has not be checkpointed now in the new epoch
-
-      const currentBlockTime = await time.latest();
-      controllerNextEpochTime = (await gaugeController.time_total()).toNumber();
-
-      // sanity check
-      expect(currentBlockTime > controllerNextEpochTime).to.be.true;
-
-      // After adding a bribe, the controller time_total should be set to the next epoch time.
-      // Also the new bribe should have an epoch start time matching the now updated controller epoch time.
-
-      const gauge = GAUGES[0];
-      const token = TOKENS[0];
-
-      const controllerTimeBefore = (await gaugeController.time_total()).toNumber();
-
-      await bribeManager.addBribe(token, bribeAmount, gauge);
-
-      // Make sure epoch was updated
-      controllerNextEpochTime = (await gaugeController.time_total()).toNumber();
-      expect(controllerNextEpochTime).to.equal(controllerTimeBefore + WEEK);
-
-      const gaugeBribes: any[] = await bribeManager.getGaugeBribes(gauge, controllerNextEpochTime);
-
-      // New bribe should be aligned with updated controller checkpoint epoch
-      expect(gaugeBribes[0].epochStartTime).to.equal(controllerNextEpochTime);
-    });
-  });
-
-  // describe('Accessing bribe records', () => {
-  //   describe('Improper arguments', () => {
-  //     // TODO: Update contract and test removing zero checks to see effect on contract operations
-  //     it('reverts for zero gauge address', async () => {});
-
-  //     it('reverts for zero epoch time', async () => {});
-
-  //     it('reverts for an invalid bribe index', async () => {});
-
-  //     it('reverts if bribe record does not exist', async () => {});
+  //     await expect(bribeManager.addBribe(ZERO_ADDRESS, 0, ZERO_ADDRESS)).to.be.revertedWith(
+  //       'Token not provided'
+  //     );
   //   });
 
-  //   describe('Correct arguments provided', () => {
-  //     it('returns the bribe record', async () => {});
+  //   it('reverts for non whitelist tokens', async () => {
+  //     const { bribeManager } = await loadFixture(bribeFixture);
+
+  //     await expect(bribeManager.addBribe(WBTC, 0, ZERO_ADDRESS)).to.be.revertedWith(
+  //       'Token not permitted'
+  //     );
+  //   });
+
+  //   it('reverts for a zero amount provided', async () => {
+  //     const { bribeManager } = await loadFixture(bribeFixture);
+
+  //     await expect(bribeManager.addBribe(TOKENS[0], 0, ZERO_ADDRESS)).to.be.revertedWith(
+  //       'Zero bribe amount'
+  //     );
   //   });
   // });
 
-  // describe('Updating a bribes amount', () => {
-  //   describe('Improper actions', () => {
-  //     it('reverts for zero amount', async () => {});
+  // describe('Gauge input validation', () => {
+  //   it('reverts for zero address', async () => {
+  //     const { bribeManager } = await loadFixture(bribeFixture);
 
-  //     it('reverts if caller is not bribe creator', async () => {});
-
-  //     it('reverts if bribe epoch has already passed', async () => {});
+  //     await expect(bribeManager.addBribe(TOKENS[0], bribeAmount, ZERO_ADDRESS)).to.be.revertedWith(
+  //       'Gauge not provided'
+  //     );
   //   });
 
-  //   describe('Proper actions', () => {
-  //     it('pulls the token amount from the caller', async () => {});
+  //   it('reverts for an unapproved gauge', async () => {
+  //     const { bribeManager } = await loadFixture(bribeFixture);
 
-  //     it('updates the amount for the bribe', async () => {});
+  //     await expect(
+  //       bribeManager.addBribe(TOKENS[0], bribeAmount, BNB_BUSD_GAUGE)
+  //     ).to.be.revertedWith('Gauge not permitted');
   //   });
   // });
+
+  // describe('When inputs are correct', () => {
+  //   it('adds a bribe', async () => {
+  //     await addBribe();
+  //   });
+
+  //   it('adds a distribution record through reward handler', async () => {
+  //     const { adminAccount, rewardHandler } = await loadFixture(bribeFixture);
+  //     const token = getERC20(TOKENS[0], adminAccount);
+  //     await addBribe(token.address);
+  //     expect(await token.balanceOf(rewardHandler.address)).to.equal(bribeAmount);
+  //   });
+
+  //   it('correctly sets all bribe fields', async () => {
+  //     const { bribeManager, gaugeController, adminAccount } = await loadFixture(bribeFixture);
+
+  //     // Give valid args and then verify
+  //     const gauge = GAUGES[0];
+  //     const token = TOKENS[0];
+  //     await bribeManager.addBribe(token, bribeAmount, gauge);
+  //     const controllerNextEpochTime = await gaugeController.time_total();
+  //     const gaugeBribes: any[] = await bribeManager.getGaugeBribes(gauge, controllerNextEpochTime);
+
+  //     expect(gaugeBribes.length).to.equal(1);
+  //     const gaugeBribe = gaugeBribes[0];
+  //     expect(gaugeBribe.epochStartTime).to.equal(controllerNextEpochTime);
+  //     expect(gaugeBribe.briber).to.equal(adminAccount.address);
+  //     expect(gaugeBribe.gauge).to.equal(gauge);
+  //     expect(gaugeBribe.token).to.equal(token);
+  //   });
+
+  //   it('checkpoints the controller to set epoch time correctly', async () => {
+  //     const { bribeManager, gaugeController } = await loadFixture(bribeFixture);
+
+  //     /**
+  //      * Validate that a bribe added during a time when the controller checkpoint is lagging, still has the epochStartTime set correctly.
+  //      * Should trigger a controller checkpoint to update time_total to the next week, and then set the bribe time to match the new epoch start reference.
+  //      */
+
+  //     let controllerNextEpochTime = (await gaugeController.time_total()).toNumber();
+
+  //     // Move to start of next epoch plus some buffer
+  //     await time.increaseTo(controllerNextEpochTime + DAY);
+  //     // Controller has not be checkpointed now in the new epoch
+
+  //     const currentBlockTime = await time.latest();
+  //     controllerNextEpochTime = (await gaugeController.time_total()).toNumber();
+
+  //     // sanity check
+  //     expect(currentBlockTime > controllerNextEpochTime).to.be.true;
+
+  //     // After adding a bribe, the controller time_total should be set to the next epoch time.
+  //     // Also the new bribe should have an epoch start time matching the now updated controller epoch time.
+
+  //     const gauge = GAUGES[0];
+  //     const token = TOKENS[0];
+
+  //     const controllerTimeBefore = (await gaugeController.time_total()).toNumber();
+
+  //     await bribeManager.addBribe(token, bribeAmount, gauge);
+
+  //     // Make sure epoch was updated
+  //     controllerNextEpochTime = (await gaugeController.time_total()).toNumber();
+  //     expect(controllerNextEpochTime).to.equal(controllerTimeBefore + WEEK);
+
+  //     const gaugeBribes: any[] = await bribeManager.getGaugeBribes(gauge, controllerNextEpochTime);
+
+  //     // New bribe should be aligned with updated controller checkpoint epoch
+  //     expect(gaugeBribes[0].epochStartTime).to.equal(controllerNextEpochTime);
+  //   });
+  // });
+
+  describe('Accessing bribe records', () => {
+    describe('Improper arguments', () => {
+      const token = TOKENS[0];
+      const amount = bribeAmount;
+      const gauge = GAUGES[0];
+
+      let epochTime: BigNumberish;
+
+      beforeEach(async () => {
+        epochTime = await addBribe(token, amount, gauge);
+      });
+
+      // TODO: Update contract and test removing zero checks to see effect on contract operations
+      it('reverts for zero gauge address', async () => {
+        const { bribeManager } = await loadFixture(bribeFixture);
+        await expect(bribeManager.getBribe(ZERO_ADDRESS, 0, 0)).to.be.revertedWith('Invalid gauge');
+      });
+
+      it('reverts for zero epoch time', async () => {});
+
+      it('reverts for an invalid bribe index', async () => {});
+
+      it('reverts if bribe record does not exist', async () => {});
+    });
+
+    describe('Correct arguments provided', () => {
+      it('returns the bribe record', async () => {});
+    });
+  });
 });
