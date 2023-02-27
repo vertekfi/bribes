@@ -167,6 +167,7 @@ contract BribeManager is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         // TODO: Test various edge cases
         // Test this for learning also. Mappings are init to default values
         // Try testing scenarios where what not thinking of or accounting for these(and or others) could let happen
+        // Checks are added since used internally also
         require(gauge != address(0), "Invalid gauge");
         require(epochTimestamp > 0, "Invalid epoch timestamp");
 
