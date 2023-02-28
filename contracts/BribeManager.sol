@@ -6,6 +6,7 @@ import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableSetUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableMapUpgradeable.sol";
 
 import "./interfaces/IGaugeController.sol";
 import "./interfaces/ILiquidityGauge.sol";
@@ -14,6 +15,7 @@ import "./interfaces/IRewardHandler.sol";
 contract BribeManager is AccessControlUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20Upgradeable for IERC20Upgradeable;
     using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
+    using EnumerableMapUpgradeable for EnumerableMapUpgradeable.AddressToUintMap;
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
@@ -36,6 +38,16 @@ contract BribeManager is AccessControlUpgradeable, PausableUpgradeable, Reentran
     event GaugeRemoved(address gauge);
     event GaugeControllerSet(address controller);
     event RewardHandlerSet(address handler);
+    event BribeFeeUpdated(uint256 fee);
+    event FeeWithdraw(address[] tokens, uint256[] amounts);
+
+    uint256 public constant MAX_BRIBE_FEE = 2500; // 25%
+
+    uint256 public bribeFee;
+
+    address public protocolFeesCollector;
+
+    EnumerableMapUpgradeable.AddressToUintMap private _pendingFees;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -99,7 +111,6 @@ contract BribeManager is AccessControlUpgradeable, PausableUpgradeable, Reentran
         uint256 amount,
         address gauge
     ) external nonReentrant whenNotPaused {
-        // TODO: unit test edge cases
         require(token != address(0), "Token not provided");
         require(isWhitelistedToken(token), "Token not permitted");
         require(amount > 0, "Zero bribe amount");
@@ -121,6 +132,12 @@ contract BribeManager is AccessControlUpgradeable, PausableUpgradeable, Reentran
             nextEpochStart = _gaugeController.time_total();
         }
 
+        if (bribeFee > 0) {
+            uint256 feeAmount = (amount * bribeFee) / 10000;
+            amount = amount - feeAmount;
+            _updateFees(token, feeAmount);
+        }
+
         // Single propery writes can save gas
         Bribe memory bribe;
         bribe.token = token;
@@ -133,9 +150,8 @@ contract BribeManager is AccessControlUpgradeable, PausableUpgradeable, Reentran
         _gaugeEpochBribes[gauge][nextEpochStart].push(bribe);
 
         // Results in two transfers (user => here, here => rewarder)
-        // But currently makes tracking the flow a bit clearer
+        // But currently makes tracking the flow between the two contracts a bit clearer
         IERC20Upgradeable(token).safeTransferFrom(_msgSender(), address(this), amount);
-        // TODO: Could add a "notifyDistribution" sort of function instead of adding the additional transfer
         _rewardHandler.managerAddDistribution(IERC20Upgradeable(token), _msgSender(), amount);
 
         emit BribeAdded(nextEpochStart, gauge, token, amount);
@@ -151,11 +167,16 @@ contract BribeManager is AccessControlUpgradeable, PausableUpgradeable, Reentran
         return _rewardHandler;
     }
 
+    function getGaugeController() external view returns (IGaugeController) {
+        return _gaugeController;
+    }
+
     /// @dev Checks whether a token has been added to the token whitelist
     function isWhitelistedToken(address token) public view returns (bool) {
         return _whitelistedTokens.contains(token);
     }
 
+    /// @dev Checks whether a gauge has been approved to receive bribes
     function isGaugeApproved(address gauge) public view returns (bool) {
         return _approvedGauges.contains(gauge);
     }
@@ -165,26 +186,18 @@ contract BribeManager is AccessControlUpgradeable, PausableUpgradeable, Reentran
         return _gaugeEpochBribes[gauge][epoch];
     }
 
-    function getGaugeController() external view returns (IGaugeController) {
-        return _gaugeController;
-    }
-
     /// @dev Gets a single bribe record for a gauge by index for a given epoch
     function getBribe(
         address gauge,
         uint256 epochTimestamp,
         uint256 index
     ) public view returns (Bribe memory) {
-        // TODO: Test various edge cases
-        // Test this for learning also. Mappings are init to default values
-        // Try testing scenarios where what not thinking of or accounting for these(and or others) could let happen
         // Checks are added since used internally also
         require(gauge != address(0), "Invalid gauge");
         require(epochTimestamp > 0, "Invalid epoch timestamp");
 
         Bribe[] memory bribes = _gaugeEpochBribes[gauge][epochTimestamp];
 
-        // TODO: Test various edge cases
         require(bribes.length > 0, "No bribes for epoch");
         require(index < bribes.length, "Invalid index");
 
@@ -192,6 +205,34 @@ contract BribeManager is AccessControlUpgradeable, PausableUpgradeable, Reentran
     }
 
     // ====================================== ADMIN ===================================== //
+
+    function _updateFees(address token, uint256 amount) private {
+        // Skip extra storage access if not needed
+        if (_pendingFees.contains(token)) {
+            uint256 currentAmount = _pendingFees.get(token);
+            currentAmount += amount;
+            _pendingFees.set(token, currentAmount);
+        } else {
+            _pendingFees.set(token, amount);
+        }
+    }
+
+    function setBribeFee(uint256 fee) external onlyRole(ADMIN_ROLE) {
+        require(fee <= MAX_BRIBE_FEE, "Fee too high");
+
+        bribeFee = fee;
+        emit BribeFeeUpdated(fee);
+    }
+
+    function setProtocolFeesCollector(address feeCollector) external onlyRole(ADMIN_ROLE) {
+        require(feeCollector != address(0), "Fee collector not provided");
+
+        protocolFeesCollector = feeCollector;
+    }
+
+    function withdrawFees() external onlyRole(ADMIN_ROLE) {
+        //
+    }
 
     /// @dev Adds a list of tokens to the token whitelist to be used as bribe reward options
     function addWhiteListTokens(address[] calldata tokens) external onlyRole(ADMIN_ROLE) {
