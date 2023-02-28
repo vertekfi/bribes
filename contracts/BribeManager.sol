@@ -143,6 +143,10 @@ contract BribeManager is AccessControlUpgradeable, PausableUpgradeable, Reentran
 
     // ====================================== VIEW ===================================== //
 
+    function getTokenList() external view returns (address[] memory) {
+        return _whitelistedTokens.values();
+    }
+
     function getRewardHandler() public view returns (IRewardHandler) {
         return _rewardHandler;
     }

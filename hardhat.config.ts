@@ -1,7 +1,7 @@
-import * as dotenv from "dotenv";
-import { HardhatUserConfig } from "hardhat/config";
-import "@nomicfoundation/hardhat-toolbox";
-import "@openzeppelin/hardhat-upgrades";
+import * as dotenv from 'dotenv';
+import { HardhatUserConfig } from 'hardhat/config';
+import '@nomicfoundation/hardhat-toolbox';
+import '@openzeppelin/hardhat-upgrades';
 
 dotenv.config();
 
@@ -9,7 +9,7 @@ const config: HardhatUserConfig = {
   solidity: {
     compilers: [
       {
-        version: "0.8.12",
+        version: '0.8.12',
         settings: {
           optimizer: {
             enabled: true,
@@ -22,16 +22,16 @@ const config: HardhatUserConfig = {
   networks: {
     hardhat: {
       forking: {
-        url: process.env.BSC_RPC || "",
-        blockNumber: 25871837,
+        url: process.env.BSC_RPC || '',
+        blockNumber: 26057094,
       },
     },
     goerli: {
-      url: process.env.GOERLI_RPC || "",
+      url: process.env.GOERLI_RPC || '',
       accounts: process.env.DEV_KEY !== undefined ? [process.env.DEV_KEY] : [],
     },
     bsc: {
-      url: process.env.BSC_RPC || "",
+      url: process.env.BSC_RPC || '',
       accounts: process.env.DEV_KEY !== undefined ? [process.env.DEV_KEY] : [],
     },
   },

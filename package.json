@@ -1,6 +1,7 @@
 {
   "name": "hardhat-template",
   "scripts": {
+    "start": "npx hardhat node",
     "build": "npx hardhat compile",
     "test": "npx hardhat test",
     "forge:test": "forge test -vvv",
