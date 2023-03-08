@@ -6,7 +6,7 @@
     "test": "npx hardhat test",
     "forge:test": "forge test -vvv",
     "forge:test:watch": "forge test --watch --run-all -vvv",
-    "deploy": "npx hardhat run ./scripts/deploy.ts"
+    "deploy": "npx hardhat run --network bsc ./scripts/deploy.ts"
   },
   "devDependencies": {
     "@ethersproject/abi": "^5.7.0",

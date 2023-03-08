@@ -169,9 +169,6 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
      */
     function createDistribution(
         IERC20Upgradeable token,
-        address gauge,
-        uint256 epoch,
-        uint256 bribeRecordIndex,
         uint256 amount,
         address briber,
         uint256 distributionId,
@@ -181,15 +178,15 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
         require(merkleRoot != bytes32(0), "Merkle root not set");
 
         // Will check and revert for basic incorrect values
-        Bribe memory bribe = _bribeManager.getBribe(gauge, epoch, bribeRecordIndex);
+        // Bribe memory bribe = _bribeManager.getBribe(gauge, epoch, bribeRecordIndex);
 
-        require(
-            bribe.token == address(token) &&
-                bribe.gauge == gauge &&
-                bribe.briber == briber &&
-                bribe.amount == amount,
-            "Invalid bribe record"
-        );
+        // require(
+        //     bribe.token == address(token) &&
+        //         bribe.gauge == gauge &&
+        //         bribe.briber == briber &&
+        //         bribe.amount == amount,
+        //     "Invalid bribe record"
+        // );
 
         bytes32 channelId = _getChannelId(token, briber);
 
@@ -197,6 +194,11 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
             _nextDistributionId[channelId] == distributionId || _nextDistributionId[channelId] == 0,
             "invalid distribution ID"
         );
+
+        // This does not prevent adding multiple amounts less than channel amount/balance
+        // and cause reverts if distributions are not managed correctly.
+        // A "distribution channel" could be used to write these amounts coming in to.
+        // And that is where actual user claims are pulled from then
         require(_remainingBalance[channelId] >= amount, "Insufficient channel balance for amount");
 
         // This is updated by the bribe manager through `addDistribution`

@@ -72,18 +72,21 @@ async function main() {
 
   // await rewardHandler.setBribeManager(bribeManager.address);
 
-  const BribeManager = await ethers.getContractFactory('BribeManager');
-  const bribeManager = await upgrades.upgradeProxy(
-    '0xb1B1695FeA2E3a8B2aAE3A0d2a59Ea3F5e4A7508',
-    BribeManager
-  );
-  await bribeManager.deployed();
-  console.log(`BribeManager upgrade complete`);
+  // const BribeManager = await ethers.getContractFactory('BribeManager');
+  // const bribeManager = await upgrades.upgradeProxy(
+  //   '0xb1B1695FeA2E3a8B2aAE3A0d2a59Ea3F5e4A7508',
+  //   BribeManager
+  // );
+  // await bribeManager.deployed();
+  // console.log(`BribeManager upgrade complete`);
 
-  // const MerkleOrchard = await ethers.getContractFactory('MerkleOrchard');
-  // const rewardHandler = await upgrades.upgradeProxy('', MerkleOrchard);
-  // await rewardHandler.deployed();
-  // console.log(`MerkelOrchardupgrade upgrade complete`);
+  const MerkleOrchard = await ethers.getContractFactory('MerkleOrchard');
+  const rewardHandler = await upgrades.upgradeProxy(
+    '0x27eDCe99d5aF44318358497fD5Af5C8e312F1721',
+    MerkleOrchard
+  );
+  await rewardHandler.deployed();
+  console.log(`MerkelOrchardupgrade upgrade complete`);
 }
 
 main().catch((error) => {

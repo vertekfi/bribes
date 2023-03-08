@@ -159,7 +159,7 @@ contract BribeManager is AccessControlUpgradeable, PausableUpgradeable, Reentran
 
     // ====================================== VIEW ===================================== //
 
-    function getTokenList() external view returns (address[] memory) {
+    function getTokenList() public view returns (address[] memory) {
         return _whitelistedTokens.values();
     }
 
@@ -204,10 +204,30 @@ contract BribeManager is AccessControlUpgradeable, PausableUpgradeable, Reentran
         return bribes[index];
     }
 
+    function getPendingFees()
+        external
+        view
+        returns (address[] memory tokens, uint256[] memory amounts)
+    {
+        address[] memory tokenList = getTokenList();
+        tokens = new address[](tokenList.length);
+        amounts = new uint256[](tokenList.length);
+
+        // for (uint i = 0; i < tokenList.length; ) {
+        //     tokens[i] = tokenList[i];
+        //     amounts[i] =
+
+        //     unchecked {
+        //         ++i;
+        //     }
+        // }
+    }
+
     // ====================================== ADMIN ===================================== //
 
     function _updateFees(address token, uint256 amount) private {
         // Skip extra storage access if not needed
+        // Calling set straight away would overwrite any previous value
         if (_pendingFees.contains(token)) {
             uint256 currentAmount = _pendingFees.get(token);
             currentAmount += amount;
@@ -261,6 +281,8 @@ contract BribeManager is AccessControlUpgradeable, PausableUpgradeable, Reentran
     function removeWhiteListToken(address token) external onlyRole(ADMIN_ROLE) {
         // Skipping any additional checks for gas
         _whitelistedTokens.remove(token);
+
+        // TODO: Any pending fees for token
 
         emit RemoveWhitelistToken(token);
     }
