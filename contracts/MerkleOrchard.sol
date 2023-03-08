@@ -351,4 +351,17 @@ contract MerkleOrchard is AccessControlUpgradeable, ReentrancyGuardUpgradeable, 
 
         _bribeManager = IBribeManager(manager);
     }
+
+    function operatorAddDistribution(
+        IERC20Upgradeable token,
+        address briber,
+        uint256 amount
+    ) external onlyRole(OPERATOR_ROLE) {
+        require(address(token) != address(0), "Token not provided");
+
+        bytes32 channelId = _getChannelId(token, briber);
+        _remainingBalance[channelId] += amount;
+
+        token.safeTransferFrom(_msgSender(), address(this), amount);
+    }
 }
