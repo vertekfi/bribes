@@ -25,11 +25,12 @@ export async function bribeFixture() {
   ]);
   await bribeManager.deployed();
 
-  await rewardHandler.setBribeManager(bribeManager.address);
-
   const accounts = await ethers.getSigners();
   const adminAccount = accounts[0];
   const randomUserAccount = accounts[1];
+
+  await rewardHandler.setBribeManager(bribeManager.address);
+  await rewardHandler.grantRole(await rewardHandler.DISTRIBUTOR_ROLE(), adminAccount.address);
 
   // Run approvals once so taken care of
   for (const token of TOKENS) {
@@ -78,3 +79,5 @@ export async function bribeFixture() {
 
   return { bribeManager, gaugeController, adminAccount, randomUserAccount, rewardHandler, vault };
 }
+
+async function giveTokies() {}

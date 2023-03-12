@@ -1,5 +1,6 @@
 export const GAUGE_CONTROLLER = '0x99bFf5953843A211792BF3715b1b3b4CBeE34CE6';
 export const VAULT = '0x719488F4E859953967eFE963c6Bed059BaAab60c';
+export const VERTEK_ADMIN_ACTIONS = '0x85b3062122Dda49002471500C0F559C776FfD8DD';
 
 export const BUSD = '0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56';
 export const WBNB = '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c';
@@ -55,3 +56,24 @@ export const USER_DATA = [
     },
   },
 ];
+
+export const TEST_DIST_DATA = {
+  gauge: '0x9DAb43a1D850eC820C88a19561C1fD87dEC09193',
+  merkleRoot: '0xec0c01e2107ab5de4842dc0bdeac812f27a99b6fbe0d3806c681bc79adda648d',
+  userData: [
+    {
+      user: '0xF0C481024B0097916fB9aC0156cc8fB08A29F9F7',
+      userGaugeRelativeWeight: 0.0551937463770917,
+      userRelativeAmount: 55.193746377092,
+      values: {
+        proof: [
+          '0x53c49188f60a8bbeb90e35ddf8ea84926acc59b5c9481f660f739420867bb2b4',
+          '0x8ec0d9a101fcb1537c4514ee0088cf4d1d096b32ba051dd6fca9b2242797c303',
+          '0x8d19d7e6ab8c64fcdd18be622275fb662324f848fba3e052c2b132baa9ed02f3',
+          '0x24846f8f1b78c4325833529d090661e537a1255576fdf6941a3572564fe85585',
+        ],
+        value: ['0xF0C481024B0097916fB9aC0156cc8fB08A29F9F7', '55193746377092000000'],
+      },
+    },
+  ],
+};

@@ -5,7 +5,7 @@ import { parseEther } from 'ethers/lib/utils';
 import { ethers } from 'hardhat';
 import { addBribe, bribeAmount } from './bribe.utils';
 import { ZERO_ADDRESS, ZERO_BYTES_32 } from './constants';
-import { BUSD, GAUGES, MERKLE_ROOT, TOKENS, USER_DATA, WBNB } from './data';
+import { MERKLE_ROOT, TOKENS, USER_DATA } from './data';
 import { bribeFixture } from './fixtures/bribe.fixture';
 import { getAccessControlRevertString, getERC20, getRandomBytes32 } from './utils';
 
@@ -16,17 +16,12 @@ async function doBribeAndDistribution(root?: string) {
 
   // addBribe uses index zero by default
   const token = TOKENS[0];
-  const gauge = GAUGES[0];
   const distributionId = 0;
-  const bribeRecordIndex = 0;
   const merkleRoot = root || getRandomBytes32();
 
   await expect(
     rewardHandler.createDistribution(
       token,
-      gauge,
-      epochTime,
-      bribeRecordIndex,
       bribeAmount,
       adminAccount.address,
       distributionId,
@@ -56,9 +51,6 @@ describe('Merkle Rewards', () => {
             .createDistribution(
               ZERO_ADDRESS,
               ZERO_ADDRESS,
-              0,
-              0,
-              0,
               ZERO_ADDRESS,
               0,
               ethers.constants.HashZero
@@ -76,48 +68,19 @@ describe('Merkle Rewards', () => {
       it('reverts if merkle root is not provided', async () => {
         const { rewardHandler, adminAccount } = await loadFixture(bribeFixture);
 
-        const { epochTime } = await addBribe();
-
         // addBribe uses index zero by default
         const token = TOKENS[0];
-        const gauge = GAUGES[0];
         const distributionId = 0;
 
         await expect(
           rewardHandler.createDistribution(
             token,
-            gauge,
-            epochTime,
-            0,
             bribeAmount,
             adminAccount.address,
             distributionId,
             ZERO_BYTES_32 // invalid zero bytes
           )
         ).to.be.revertedWith('Merkle root not set');
-      });
-
-      it('reverts when the bribe record values do not match input parameters', async () => {
-        const { rewardHandler, adminAccount } = await loadFixture(bribeFixture);
-        const { epochTime } = await addBribe();
-
-        // addBribe uses index zero by default
-        const token = TOKENS[0];
-        const gauge = GAUGES[0];
-        const distributionId = 0;
-
-        await expect(
-          rewardHandler.createDistribution(
-            token,
-            gauge,
-            epochTime,
-            0, // valid index
-            parseEther('1'), // invalid, default 100 was used
-            adminAccount.address, // valid
-            distributionId, // valid
-            getRandomBytes32() // valid
-          )
-        ).to.be.revertedWith('Invalid bribe record');
       });
     });
 
@@ -164,6 +127,7 @@ describe('Merkle Rewards', () => {
         userClaimAmount,
         merkleProof
       );
+
       expect(isValidClaim).to.be.true;
     });
 
@@ -184,7 +148,9 @@ describe('Merkle Rewards', () => {
         userClaimAmount,
         merkleProof
       );
+
       expect(isValidClaim).to.be.false;
+
       // Provide invalid user address. Account is not part of the generated tree
       claimer = adminAccount.address;
       userClaimAmount = testClaimer.values.value[1];
@@ -196,6 +162,7 @@ describe('Merkle Rewards', () => {
         userClaimAmount,
         merkleProof
       );
+
       expect(isValidClaim).to.be.false;
     });
 
@@ -205,9 +172,11 @@ describe('Merkle Rewards', () => {
       const { distributionId, adminAccount, token, rewardHandler } = await doBribeAndDistribution(
         MERKLE_ROOT
       );
+
       const briber = adminAccount.address;
       const claimer = testClaimer.user;
       const isClaimed = await rewardHandler.isClaimed(token, briber, distributionId, claimer);
+
       // User is valid but has not claimed distribution
       expect(isClaimed).to.be.false;
     });
@@ -230,11 +199,9 @@ describe('Merkle Rewards', () => {
       const tokenInstance = getERC20(token, adminAccount);
       const userBalanceBefore: BigNumber = await tokenInstance.balanceOf(claimer);
 
-      await rewardHandler.claimDistributions(
-        claimer,
-        [[distributionId, balance, distributor, tokenIndex, merkleProof]],
-        tokensToClaim
-      );
+      const claims = [[distributionId, balance, distributor, tokenIndex, merkleProof]];
+
+      await rewardHandler.claimDistributions(claimer, claims, tokensToClaim);
 
       const userBalanceAfter: BigNumber = await tokenInstance.balanceOf(claimer);
 
@@ -246,7 +213,7 @@ describe('Merkle Rewards', () => {
 
       return {
         claimer,
-        claims: [[distributionId, balance, distributor, tokenIndex, merkleProof]],
+        claims,
         tokensToClaim,
         rewardHandler,
       };
